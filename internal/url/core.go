@@ -1,16 +1,18 @@
 package url
 
 import (
+	"fmt"
 	"net/url"
-	"path"
+	"path/filepath"
 	"strings"
 )
 
 // ToPath converts a url to a path like string.
+// The path will have OS specific separators.
 func ToPath(u string) (string, error) {
 	noProtocol, err := removeProtocol(u)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf(`converting URL "%s" to path: %w`, u, err)
 	}
 
 	var pathSegments []string
@@ -20,7 +22,7 @@ func ToPath(u string) (string, error) {
 		}
 	}
 
-	return path.Join(pathSegments...), nil
+	return filepath.Join(pathSegments...), nil
 }
 
 func removeProtocol(repoURL string) (string, error) {
@@ -32,7 +34,7 @@ func removeProtocol(repoURL string) (string, error) {
 	// Parse the URL, remove the Scheme and leading "/"
 	u, err := url.Parse(repoURL)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf(`parsing URL "%s": %w`, repoURL, err)
 	}
 	u.Scheme = ""
 

@@ -13,10 +13,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/kyokomi/emoji"
 	"github.com/microsoft/fabrikate/internal/logger"
-	"gopkg.in/yaml.v3"
+	"github.com/timfpark/yaml"
 )
 
-// DependencyUpdate attempts to run `helm dependency update` on chartPath
+// DependencyUpdate attempts to run `helm dependency update` on chartPath.
+// TODO: confirm that his is actually needed after doing `helm pull`. Fabrikate
+// DOES NOT currently call this.
+// TODO: clean this up -- this is a copy of old code
 func DependencyUpdate(chartPath string) (err error) {
 	// A single helm dependency entry
 	type helmDependency struct {

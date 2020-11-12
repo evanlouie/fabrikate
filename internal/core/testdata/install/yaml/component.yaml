@@ -1,0 +1,20 @@
+name: monitoring
+type: component
+subcomponents:
+  - name: prometheus
+    type: helm
+    method: helm
+    source: https://prometheus-community.github.io/helm-charts
+    path: prometheus
+    version: 13.3.2
+  - name: grafana
+    type: helm
+    method: helm
+    source: https://grafana.github.io/helm-charts
+    path: grafana
+    version: 6.3.0
+  - name: monitoring
+    type: component
+    method: local
+    source: ./a
+

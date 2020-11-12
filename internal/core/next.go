@@ -1,0 +1,371 @@
+package core
+
+import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
+	"path/filepath"
+	"regexp"
+	"strings"
+
+	"github.com/microsoft/fabrikate/internal/generatable"
+	"github.com/microsoft/fabrikate/internal/installable"
+	"github.com/timfpark/yaml"
+)
+
+// Load attempts to load a `component\.(ya?ml|json)` from the provided component
+// directory.
+func Load(componentDirectory string) (c Component, err error) {
+	fileRgx := regexp.MustCompile(`(?i)^component\.(ya?ml|json)$`)
+	if file, err := os.Stat(componentDirectory); err != nil {
+		return c, fmt.Errorf(`loading component from "%s": %w`, componentDirectory, err)
+	} else if !file.IsDir() {
+		return c, fmt.Errorf(`component must be a directory containing a file matching "%s", a non-directory was passed: %s`, fileRgx, componentDirectory)
+	}
+
+	// calculate possible component.<yaml|json> filepaths
+	componentAbsDir, err := filepath.Abs(componentDirectory)
+	if err != nil {
+		return c, fmt.Errorf(`finding absolute path of component "%v": %w`, componentDirectory, err)
+	}
+	files, err := ioutil.ReadDir(componentAbsDir)
+	fmt.Println(componentAbsDir)
+	for _, file := range files {
+		fmt.Println("---" + file.Name())
+	}
+	if err != nil {
+		return c, fmt.Errorf(`loading files from component directory "%s": %w`, componentAbsDir, err)
+	}
+
+	// iterate over all files in the the component directory and search for a valid component.(ya?ml|json)
+	var componentFile string
+	for _, file := range files {
+		fmt.Println(componentAbsDir + " -> " + file.Name())
+		if fileRgx.MatchString(file.Name()) {
+			// make sure only one of .yaml,yml,json exists
+			if componentFile == "" {
+				componentFile = file.Name()
+			} else {
+				return c, fmt.Errorf(`only one of component definition can exist per component directory, both "%s" and "%s" found in "%v"`, componentFile, file.Name(), componentAbsDir)
+			}
+		}
+	}
+	if componentFile == "" {
+		return c, fmt.Errorf(`component definition file matching %s not found in "%v"`, fileRgx, componentAbsDir)
+	}
+
+	// read the file and unmarshal into found extension type
+	componentPath := filepath.Join(componentAbsDir, componentFile)
+	componentBytes, err := ioutil.ReadFile(componentPath)
+	if err != nil {
+		return c, fmt.Errorf(`failed to read component file "%v": %w`, componentPath, err)
+	}
+	ext := filepath.Ext(componentFile)
+	if strings.EqualFold(ext, ".yaml") || strings.EqualFold(ext, ".yml") {
+		if err := yaml.Unmarshal(componentBytes, &c); err != nil {
+			return c, fmt.Errorf(`failed to unmarshal %s at "%s": %w`, componentFile, componentPath, err)
+		}
+	} else if strings.EqualFold(ext, ".json") {
+		if err := json.Unmarshal(componentBytes, &c); err != nil {
+			return c, fmt.Errorf(`failed to unmarshal %s at "%s": %w`, componentFile, componentPath, err)
+		}
+	} else {
+		return c, fmt.Errorf(`invalid component extension "%s"`, ext)
+	}
+
+	return c, err
+}
+
+func (c Component) ToInstallable() (installer installable.Installable, err error) {
+	switch c.Method {
+	case "git":
+		installer = installable.Git{
+			URL:    c.Source,
+			Branch: c.Branch,
+			SHA:    c.Version,
+		}
+	case "helm":
+		installer = installable.Helm{
+			URL:     c.Source,
+			Chart:   c.Path,
+			Version: c.Version,
+		}
+	case "local":
+		installer = installable.Local{
+			Root: filepath.Join(c.Source, c.Path),
+		}
+	case "":
+		// noop
+	default:
+		return installer, fmt.Errorf(`unsupported method "%v" in component "%+v"`, c.Method, c)
+	}
+
+	return installer, nil
+}
+
+func (c Component) ToGeneratable() (generator generatable.Generatable, err error) {
+	installer, err := c.ToInstallable()
+	if err != nil {
+		return generator, fmt.Errorf(`converting to component %+v to Installable: %w`, c, err)
+	}
+	var installPath string
+	if installer != nil {
+		installPath, err = installer.GetInstallPath()
+		if err != nil {
+			return generator, fmt.Errorf(`getting install path for component %+v: %w`, c, err)
+		}
+	}
+	// TODO THIS IS BUSTED
+	pathable := generatable.Pathable{
+		ComponentPath: strings.Split(c.LogicalPath, "/"),
+	}
+
+	switch c.ComponentType {
+	case "helm":
+		generator = generatable.Helm{
+			ChartPath: installPath,
+			Pathable:  pathable,
+		}
+	case "static":
+		generator = generatable.Static{
+			ManifestPath: installPath,
+			Pathable:     pathable,
+		}
+	case "":
+		fallthrough // same as "component"
+	case "component":
+		// noop
+	default:
+		return generator, fmt.Errorf(`unsupported type "%s" in component %+v`, c.ComponentType, c)
+	}
+
+	return generator, nil
+}
+
+// Validate returns an error the component is unable to be converted to an
+// Installable and Generatable and have both of them be validated.
+func (c Component) Validate() error {
+	installer, err := c.ToInstallable()
+	if err != nil {
+		return fmt.Errorf(`converting component %+v to installable: %w`, c, err)
+	}
+	if err := installer.Validate(); err != nil {
+		return fmt.Errorf(`validating installable %+v for component %+v: %w`, installer, c, err)
+	}
+	generator, err := c.ToGeneratable()
+	if err != nil {
+		return fmt.Errorf(`converting component %+v to generatable: %w`, c, err)
+	}
+	if err := generator.Validate(); err != nil {
+		return fmt.Errorf(`validaing generatable %+v for component %+v: %w`, generator, c, err)
+	}
+
+	return nil
+}
+
+func echo(level int, message interface{}) {
+	decorator := "-"
+	switch level {
+	case 0:
+		decorator = ">"
+	case 1:
+		decorator = "\u2192" // right arrow
+	case 2:
+		decorator = "+"
+	}
+	// indent := strings.Repeat("    ", level)
+	indent := strings.Repeat("\t", level)
+	fmt.Printf("%v%v %v\n", indent, decorator, message)
+}
+
+func Install(startPath string) ([]string, error) {
+	echo(0, fmt.Sprintf(`Starting Fabrikate installation at: "%v"`, startPath))
+
+	// change working directory to the dir of the component.yaml
+	echo(1, fmt.Sprintf(`Changing working directory to "%s"`, startPath))
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Chdir(startPath); err != nil {
+		return nil, err
+	}
+	defer os.Chdir(cwd)
+
+	nwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	c, err := Load(nwd)
+	if err != nil {
+		return nil, fmt.Errorf(`loading component from path '%s': %w`, nwd, err)
+	}
+	// manually set component paths
+	c.ComponentPath = append(c.ComponentPath, c.Name)
+
+	visited, err := install([]Component{c}, []Component{})
+	if err != nil {
+		return nil, err
+	}
+
+	echo(0, "Installation report:")
+	var installedLogicalPaths []string
+	for _, c := range visited {
+		installedLogicalPaths = append(installedLogicalPaths, path.Join(c.ComponentPath...))
+		echo(1, fmt.Sprintf("%s", strings.Join(c.ComponentPath, " \u27A5 ")))
+	}
+
+	return installedLogicalPaths, nil
+}
+
+func install(queue []Component, visited []Component) ([]Component, error) {
+	//----------------------------------------------------------------------------
+	// base case
+	if len(queue) == 0 {
+		return visited, nil
+	}
+
+	//----------------------------------------------------------------------------
+	// recursive case
+	first, rest := queue[0], queue[1:]
+
+	echo(0, fmt.Sprintf(`Installing component: "%v"`, first.Name))
+	echo(1, "Adding subcomponents to queue")
+	for _, sub := range first.Subcomponents {
+		sub.ComponentPath = append(first.ComponentPath, sub.Name)
+		rest = append(rest, sub)
+		echo(2, fmt.Sprintf(`Added component to queue: "%v"`, sub.Name))
+	}
+
+	echo(1, "Executing hook: Before-Install")
+	if err := first.beforeInstall(); err != nil {
+		echo(2, fmt.Errorf(`error running "before-install" hook: %w`, err))
+	}
+
+	installer, err := first.ToInstallable()
+	if err != nil {
+		return visited, fmt.Errorf(`installing component "%v": %w`, first.Name, err)
+	}
+	if installer != nil {
+		echo(1, "Validating coordinate")
+		if err := installer.Validate(); err != nil {
+			return visited, fmt.Errorf(`validation failed for component coordinate "%+v": %w`, installer, err)
+		}
+
+		echo(1, "Computing installation path")
+		installPath, err := installer.GetInstallPath()
+		if err != nil {
+			return visited, err
+		}
+		echo(2, fmt.Sprintf(`Installation path: "%v"`, installPath))
+
+		echo(1, "Cleaning previous installation")
+		if _, exists := os.Stat(installPath); exists == nil {
+			echo(2, fmt.Sprintf(`Removing previous installation at "%v"`, installPath))
+			if err := os.RemoveAll(installPath); err != nil {
+				return visited, fmt.Errorf(`error removing existing installation "%v": %w`, installPath, err)
+			}
+		}
+
+		echo(1, "Installing")
+		if err := installer.Install(); err != nil {
+			return visited, fmt.Errorf(`installing component "%v": %w`, first.Name, err)
+		}
+		echo(2, fmt.Sprintf(`Installed component to: "%v"`, installPath))
+
+		// add remote components to the queue
+		componentType := strings.ToLower(first.ComponentType)
+		if componentType == "" || componentType == "component" {
+			remoteComponentPath := filepath.Join(installPath, first.Path)
+			echo(2, fmt.Sprintf(`Adding fetched remote component to queue: "%v"`, remoteComponentPath))
+			echo(3, fmt.Sprintf(`Loading component: "%v"`, remoteComponentPath))
+			remoteComponent, err := Load(remoteComponentPath)
+			if err != nil {
+				return visited, fmt.Errorf(`error loading component from path "%v": %w`, installPath, err)
+			}
+			echo(4, fmt.Sprintf(`Loaded component: "%v"`, remoteComponent.Name))
+			rest = append(rest, remoteComponent)
+			echo(3, fmt.Sprintf(`Added remote component to queue: "%v"`, remoteComponent.Name))
+		}
+	}
+
+	echo(1, "Executing hook: After-Install")
+	if err := first.afterInstall(); err != nil {
+		echo(2, fmt.Errorf(`error running "after-install" hook: %w`, err))
+	}
+
+	visited = append(visited, first)
+	echo(1, "Installation complete")
+
+	return install(rest, visited)
+}
+
+type iterator = func(c Component) error
+
+func Iterate(startPath string, visit iterator) ([]Component, error) {
+	// Load starting component
+	component, err := Load(startPath)
+	if err != nil {
+		return nil, fmt.Errorf(`failed to load component at "%v": %w`, startPath, err)
+	}
+	// Initialize the tree tracking properties of the component
+	component.PhysicalPath = startPath
+	component.LogicalPath = fmt.Sprintf("%v", os.PathSeparator)
+
+	return iterate(visit, []Component{component}, []Component{})
+}
+
+func iterate(visit iterator, queue []Component, visited []Component) ([]Component, error) {
+	//----------------------------------------------------------------------------
+	// Base case
+	if len(queue) == 0 {
+		return visited, nil
+	}
+
+	//----------------------------------------------------------------------------
+	// Recursive case
+	first, rest := queue[0], queue[1:]
+	environments := []string{"common"}
+	if err := first.LoadConfig(environments); err != nil {
+		return visited, fmt.Errorf(`error loading configuration "%v" for component %+v: %w`, environments, first, err)
+	}
+
+	// Visit the component
+	if err := visit(first); err != nil {
+		return visited, fmt.Errorf(`error visiting component %+v during component iteration: %w`, first, err)
+	}
+
+	// Add all children to the queue
+	for _, child := range first.Subcomponents {
+		childType := strings.ToLower(child.ComponentType)
+		// If of type `component`, load the remote location on disk and enqueue.
+		// Else, it is inline, so just enqueue the inlined component
+		if childType == "" || childType == "component" {
+			installer, err := child.ToInstallable()
+			if err != nil {
+				return visited, fmt.Errorf(`error converting subcomponent %+v to installable: %w`, child, err)
+			}
+			physicalPath, err := installer.GetInstallPath()
+			if err != nil {
+				return visited, fmt.Errorf(`error computing installation path of subcomponent %+v: %w`, child, err)
+			}
+			remote, err := Load(physicalPath)
+			if err != nil {
+				return visited, fmt.Errorf(`error loading subcomponent in path "%+v": %w`, physicalPath, err)
+			}
+			// Remote components have their own component paths
+			remote.PhysicalPath = physicalPath
+			remote.LogicalPath = path.Join(first.LogicalPath, child.Name)
+			rest = append(rest, remote)
+		} else {
+			// Inlined components inherit component paths from the parent
+			child.PhysicalPath = first.PhysicalPath
+			child.LogicalPath = path.Join(first.LogicalPath, first.Name)
+			rest = append(rest, child)
+		}
+	}
+
+	return iterate(visit, rest, visited)
+}
