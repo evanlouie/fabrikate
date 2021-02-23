@@ -40,10 +40,10 @@ You have a couple options to build from source:
 **Using `go get`:**
 
 Use `go get` to build and install the bleeding edge (i.e `develop`) version into
-`$GOPATH/bin`:
+`$(go env GOPATH)/bin`:
 
 ```bash
-(cd && GO111MODULE=on go get github.com/microsoft/fabrikate/cmd/fab@develop)
+(cd $(mktemp -d) && GO111MODULE=on go get github.com/microsoft/fabrikate/cmd/fab@develop)
 ```
 
 **Cloning locally:**
