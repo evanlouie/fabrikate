@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -60,7 +59,7 @@ func UnmarshalFile(path string, unmarshalFunc unmarshalFunction, output interfac
 		return err
 	}
 
-	marshaled, err := ioutil.ReadFile(path)
+	marshaled, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
@@ -469,7 +468,7 @@ func (c *Component) Write() (err error) {
 
 	logger.Info(emoji.Sprintf(":floppy_disk: Writing '%s'", componentPath))
 
-	return ioutil.WriteFile(componentPath, marshaledComponent, 0644)
+	return os.WriteFile(componentPath, marshaledComponent, 0644)
 }
 
 // AddSubcomponent adds the provided subcomponents to a component.

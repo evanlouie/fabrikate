@@ -2,7 +2,6 @@ package installable
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -22,7 +21,7 @@ func (h Helm) Install() error {
 	}
 
 	// Pull to a temporary directory
-	tmpHelmDir, err := ioutil.TempDir("", "fabrikate")
+	tmpHelmDir, err := os.MkdirTemp("", "fabrikate")
 	defer os.RemoveAll(tmpHelmDir)
 	if err != nil {
 		return fmt.Errorf(`creating temporary directory to "helm pull" into: %w`, err)

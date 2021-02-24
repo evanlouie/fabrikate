@@ -3,7 +3,6 @@ package core
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -30,7 +29,7 @@ func Load(componentDirectory string) (c Component, err error) {
 	if err != nil {
 		return c, fmt.Errorf(`finding absolute path of component "%v": %w`, componentDirectory, err)
 	}
-	files, err := ioutil.ReadDir(componentAbsDir)
+	files, err := os.ReadDir(componentAbsDir)
 	fmt.Println(componentAbsDir)
 	for _, file := range files {
 		fmt.Println("---" + file.Name())
@@ -58,7 +57,7 @@ func Load(componentDirectory string) (c Component, err error) {
 
 	// read the file and unmarshal into found extension type
 	componentPath := filepath.Join(componentAbsDir, componentFile)
-	componentBytes, err := ioutil.ReadFile(componentPath)
+	componentBytes, err := os.ReadFile(componentPath)
 	if err != nil {
 		return c, fmt.Errorf(`failed to read component file "%v": %w`, componentPath, err)
 	}

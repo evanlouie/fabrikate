@@ -3,7 +3,6 @@ package generators
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
@@ -48,7 +47,7 @@ func (sg *StaticGenerator) Generate(component *core.Component) (manifest string,
 	if err != nil {
 		return "", err
 	}
-	staticFiles, err := ioutil.ReadDir(staticPath)
+	staticFiles, err := os.ReadDir(staticPath)
 	if err != nil {
 		logger.Error(fmt.Sprintf("error reading from directory %s", staticPath))
 		return "", err
@@ -58,7 +57,7 @@ func (sg *StaticGenerator) Generate(component *core.Component) (manifest string,
 	for _, staticFile := range staticFiles {
 		staticFilePath := path.Join(staticPath, staticFile.Name())
 
-		staticFileManifest, err := ioutil.ReadFile(staticFilePath)
+		staticFileManifest, err := os.ReadFile(staticFilePath)
 		if err != nil {
 			return "", err
 		}

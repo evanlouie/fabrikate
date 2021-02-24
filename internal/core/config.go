@@ -3,7 +3,6 @@ package core
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -219,5 +218,5 @@ func (cc *ComponentConfig) Write(environment string) (err error) {
 		return err
 	}
 
-	return ioutil.WriteFile(cc.GetPath(environment), marshaledConfig, 0644)
+	return os.WriteFile(cc.GetPath(environment), marshaledConfig, 0644)
 }

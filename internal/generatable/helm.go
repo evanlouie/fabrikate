@@ -2,7 +2,6 @@ package generatable
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,7 +22,7 @@ func (h Helm) Validate() error {
 
 func (h Helm) Generate() (int, error) {
 	// write values.yaml to a temporary file
-	valuesFile, err := ioutil.TempFile("", "fabrikate")
+	valuesFile, err := os.CreateTemp("", "fabrikate")
 	if err != nil {
 		return 0, fmt.Errorf(`creating temporary helm values files: %w`, err)
 	}
@@ -68,7 +67,7 @@ func (h Helm) Generate() (int, error) {
 
 	// write out template
 	asBytes := []byte(template)
-	if err := ioutil.WriteFile(generatePath, asBytes, os.ModePerm); err != nil {
+	if err := os.WriteFile(generatePath, asBytes, os.ModePerm); err != nil {
 		return 0, fmt.Errorf(`writing out helm component at "%s": %w`, generatePath, err)
 	}
 

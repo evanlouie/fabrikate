@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -30,7 +29,7 @@ func writeGeneratedManifests(generationPath string, components []core.Component)
 
 		logger.Info(emoji.Sprintf(":floppy_disk: Writing %s", componentYAMLFilePath))
 
-		err = ioutil.WriteFile(componentYAMLFilePath, []byte(component.Manifest), 0644)
+		err = os.WriteFile(componentYAMLFilePath, []byte(component.Manifest), 0644)
 		if err != nil {
 			return err
 		}

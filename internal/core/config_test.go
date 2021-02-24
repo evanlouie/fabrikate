@@ -1,7 +1,6 @@
 package core
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -112,7 +111,7 @@ func TestWriteYAML(t *testing.T) {
 	err := config.Write("test")
 	assert.Nil(t, err)
 
-	configContents, err := ioutil.ReadFile("../../testdata/write/config/test.yaml")
+	configContents, err := os.ReadFile("../../testdata/write/config/test.yaml")
 	assert.Nil(t, err)
 	assert.Equal(t, 70, len(configContents))
 }
@@ -138,7 +137,7 @@ func TestWriteJSON(t *testing.T) {
 	err := config.Write("test")
 	assert.Nil(t, err)
 
-	configContents, err := ioutil.ReadFile("../../testdata/write/config/test.json")
+	configContents, err := os.ReadFile("../../testdata/write/config/test.json")
 	assert.Nil(t, err)
 	assert.Equal(t, 132, len(configContents))
 }

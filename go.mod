@@ -1,9 +1,8 @@
 module github.com/microsoft/fabrikate
 
-go 1.15
+go 1.16
 
 require (
-	github.com/golang/protobuf v1.3.2 // indirect
 	github.com/google/go-github/v28 v28.0.1
 	github.com/google/uuid v1.1.1
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
@@ -11,7 +10,7 @@ require (
 	github.com/onsi/ginkgo v1.11.0 // indirect
 	github.com/onsi/gomega v1.7.0 // indirect
 	github.com/otiai10/copy v1.0.1
-	github.com/otiai10/curr v0.0.0-20190513014714-f5a3d24e5776 // indirect
+	github.com/otiai10/mint v1.2.4 // indirect
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cast v1.3.1 // indirect

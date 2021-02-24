@@ -3,7 +3,6 @@ package helm
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -54,7 +53,7 @@ func DependencyUpdate(chartPath string) (err error) {
 	if _, err := os.Stat(dependenciesYamlPath); err == nil {
 		logger.Info(fmt.Sprintf("'%s' found at '%s', ensuring repositories exist on helm client", filepath.Base(dependenciesYamlPath), dependenciesYamlPath))
 
-		bytes, err := ioutil.ReadFile(dependenciesYamlPath)
+		bytes, err := os.ReadFile(dependenciesYamlPath)
 		if err != nil {
 			return err
 		}

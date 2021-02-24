@@ -2,7 +2,6 @@ package generators
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -175,7 +174,7 @@ func (hg *HelmGenerator) Generate(component *core.Component) (manifest string, e
 	defer os.Remove(absOverriddenPath)
 
 	logger.Debug(emoji.Sprintf(":pencil: Writing config %s to %s\n", configYaml, absOverriddenPath))
-	if err = ioutil.WriteFile(absOverriddenPath, configYaml, 0777); err != nil {
+	if err = os.WriteFile(absOverriddenPath, configYaml, 0777); err != nil {
 		return "", err
 	}
 
@@ -254,7 +253,7 @@ func (hg *HelmGenerator) Install(c *core.Component) (err error) {
 		case "helm":
 			logger.Info(emoji.Sprintf(":helicopter: Component '%s' requesting helm chart '%s' from helm repository '%s'", c.Name, c.Path, c.Source))
 			// Pull to a temporary directory
-			tmpHelmDir, err := ioutil.TempDir("", "fabrikate")
+			tmpHelmDir, err := os.MkdirTemp("", "fabrikate")
 			defer os.RemoveAll(tmpHelmDir)
 			if err != nil {
 				return err

@@ -37,10 +37,18 @@ drop it into your `$PATH`.
 
 You have a couple options to build from source:
 
-**Using `go get`:**
+**Using `go install` or `go get`:**
 
-Use `go get` to build and install the bleeding edge (i.e `develop`) version into
-`$(go env GOPATH)/bin`:
+Use `go install` or `go get` (if your running go `<1.16`) to build and install
+the bleeding edge (i.e `develop`) version into `$(go env GOPATH)/bin`:
+
+#### Go 1.16 and greater
+
+```bash
+go install github.com/microsoft/fabrikate/cmd/fab@develop
+```
+
+#### Older versions
 
 ```bash
 (cd $(mktemp -d) && GO111MODULE=on go get github.com/microsoft/fabrikate/cmd/fab@develop)

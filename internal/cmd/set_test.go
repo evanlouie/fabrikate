@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -75,7 +74,7 @@ func TestSetValue(t *testing.T) {
 	yamlFile := "inject.yaml"
 	err = Set("fromfile", "myapp.mysubcomponent", []string{}, false, yamlFile)
 	assert.Nil(t, err)
-	bytes, err := ioutil.ReadFile(yamlFile)
+	bytes, err := os.ReadFile(yamlFile)
 	assert.Nil(t, err)
 
 	// Parse yaml
@@ -84,7 +83,7 @@ func TestSetValue(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Read into config file
-	configBytes, err := ioutil.ReadFile("config/fromfile.yaml")
+	configBytes, err := os.ReadFile("config/fromfile.yaml")
 	assert.Nil(t, err)
 	inConfig := map[string]interface{}{}
 	err = yaml.Unmarshal(configBytes, &inConfig)

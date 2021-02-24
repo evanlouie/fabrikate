@@ -4,7 +4,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/microsoft/fabrikate/internal/core"
@@ -85,7 +85,7 @@ func Set(environment string, subcomponent string, pathValuePairStrings []string,
 	// Load input file if provided
 	inputFileValuePairList := []string{}
 	if inputFile != "" {
-		bytes, err := ioutil.ReadFile(inputFile)
+		bytes, err := os.ReadFile(inputFile)
 		if err != nil {
 			return err
 		}

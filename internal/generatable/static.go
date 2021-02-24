@@ -2,7 +2,6 @@ package generatable
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -39,7 +38,7 @@ func (s Static) Generate() (int, error) {
 		}
 		// if it is a yaml file, add it to the manifest list
 		if !info.IsDir() && yamlExtRgx.MatchString(filepath.Ext(path)) {
-			b, err := ioutil.ReadFile(path)
+			b, err := os.ReadFile(path)
 			if err != nil {
 				return fmt.Errorf(`reading YAML file at "%s": %w`, path, err)
 			}
@@ -69,7 +68,7 @@ func (s Static) Generate() (int, error) {
 	// Write manifests to generation path
 	unifiedManifest := strings.Join(manifests, "\n---\n")
 	asBytes := []byte(unifiedManifest)
-	if err := ioutil.WriteFile(generatePath, asBytes, os.ModePerm); err != nil {
+	if err := os.WriteFile(generatePath, asBytes, os.ModePerm); err != nil {
 		return 0, fmt.Errorf(`writing generated static component to %s: %w`, generatePath, err)
 	}
 
