@@ -3,12 +3,12 @@ package cmd
 import (
 	"testing"
 
-	"github.com/google/go-github/v28/github"
+	"github.com/google/go-github/v33/github"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetFabrikateComponents(t *testing.T) {
-	githubCodeResults := []github.CodeResult{}
+	githubCodeResults := []*github.CodeResult{}
 	paths := []string{
 		"definitions/fabrikate-prometheus-grafana/README.md",
 		"samples/kafka-strimzi-portworx/config/README.md",
@@ -19,7 +19,7 @@ func TestGetFabrikateComponents(t *testing.T) {
 
 	for _, path := range paths {
 		var p = path
-		githubCodeResults = append(githubCodeResults, github.CodeResult{Path: &p})
+		githubCodeResults = append(githubCodeResults, &github.CodeResult{Path: &p})
 	}
 
 	components := GetFabrikateComponents(githubCodeResults)
@@ -27,7 +27,7 @@ func TestGetFabrikateComponents(t *testing.T) {
 }
 
 func TestGetFabrikateComponentsEmpty(t *testing.T) {
-	githubCodeResults := []github.CodeResult{}
+	githubCodeResults := []*github.CodeResult{}
 
 	components := GetFabrikateComponents(githubCodeResults)
 	assert.Equal(t, 0, len(components))

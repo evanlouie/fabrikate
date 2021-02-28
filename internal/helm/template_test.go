@@ -1,6 +1,9 @@
 package helm
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -216,6 +219,104 @@ baz: I am valid
 			}
 			if got != tt.want {
 				t.Errorf("cleanManifest() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTemplateWithCRDs(t *testing.T) {
+	type args struct {
+		opts TemplateOptions
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    []interface{}
+		wantErr bool
+	}{
+		{
+			"empty",
+			args{},
+			nil,
+			true,
+		},
+		{
+			"test-chart",
+			args{TemplateOptions{
+				Chart:   filepath.Join("testdata", "template", "test-chart"),
+				Release: "random-chart",
+				Set:     []string{"testValue=foobar"},
+			}},
+			[]interface{}{
+				map[string]interface{}{
+					"apiVersion": "apiextensions.k8s.io/v1beta1",
+					"kind":       "CustomResourceDefinition",
+					"metadata": map[string]interface{}{
+						"name": "bar.fabrikate.microsoft.com",
+					},
+					"spec": map[string]interface{}{
+						"group":   "fabrikate.microsoft.com",
+						"version": "v1alpha1",
+						"names": map[string]interface{}{
+							"kind":     "Bar",
+							"plural":   "bars",
+							"singular": "bar",
+						},
+						"scope": "Namespaced",
+					},
+				},
+				map[string]interface{}{
+					"apiVersion": "apiextensions.k8s.io/v1beta1",
+					"kind":       "CustomResourceDefinition",
+					"metadata": map[string]interface{}{
+						"name": "foo.fabrikate.microsoft.com",
+					},
+					"spec": map[string]interface{}{
+						"group":   "fabrikate.microsoft.com",
+						"version": "v1alpha1",
+						"names": map[string]interface{}{
+							"kind":     "Foo",
+							"plural":   "foos",
+							"singular": "foo",
+						},
+						"scope": "Namespaced",
+					},
+				},
+				map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Service",
+					"metadata": map[string]interface{}{
+						"name": "random-chart-test-chart",
+					},
+					"spec": map[string]interface{}{
+						"testValue": "foobar",
+					},
+				},
+				map[string]interface{}{
+					"apiVersion": "apps/v1",
+					"kind":       "Deployment",
+					"metadata": map[string]interface{}{
+						"name": "random-chart-test-chart",
+					},
+					"spec": map[string]interface{}{
+						"testValue": "foobar",
+					},
+				},
+			},
+			false,
+		},
+	}
+	for _, tt := range tests {
+		cwd, _ := os.Getwd()
+		fmt.Println(cwd)
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := TemplateWithCRDs(tt.args.opts)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("TemplateWithCRDs() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("TemplateWithCRDs() = %+v, want %+v", got, tt.want)
 			}
 		})
 	}

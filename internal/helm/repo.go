@@ -75,7 +75,7 @@ func RepoRemove(name string) error {
 func FindRepoNameByURL(URL string) (string, error) {
 	repositories, err := RepoList()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf(`getting helm repository list from host client via "helm repo list": %w`, err)
 	}
 	for _, entry := range repositories {
 		if entry.URL == URL {

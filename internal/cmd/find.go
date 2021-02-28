@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-github/v28/github"
+	"github.com/google/go-github/v33/github"
 	"github.com/spf13/cobra"
 
 	log "github.com/sirupsen/logrus"
@@ -20,7 +20,6 @@ func FindComponent(keyword string) error {
 	query := keyword + "+repo:microsoft/fabrikate-definitions"
 
 	results, _, err := client.Search.Code(ctx, query, nil)
-
 	if err != nil || results.CodeResults == nil {
 		return err
 	}
@@ -40,7 +39,7 @@ func FindComponent(keyword string) error {
 }
 
 // GetFabrikateComponents returns a unique list of fabrikate components from a github search result
-func GetFabrikateComponents(codeResults []github.CodeResult) []string {
+func GetFabrikateComponents(codeResults []*github.CodeResult) []string {
 
 	if codeResults == nil {
 		return []string{}

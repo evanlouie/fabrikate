@@ -2,35 +2,142 @@ package helm
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
+	fabYaml "github.com/microsoft/fabrikate/internal/yaml"
 	"gopkg.in/yaml.v3"
 )
 
 // TemplateOptions encapsulate the options for `helm template`
 type TemplateOptions struct {
 	Release   string
-	RepoURL   string
+	Repo      string
 	Chart     string
 	Version   string
 	Namespace string
 	Values    []string
+	Set       []string // "--set" flags. e.g: ["foo=bar", "baz=123"] == "--set foo=bar --set baz=123"
 }
 
-// Template is a command for `helm template`
+// TemplateWithCRDs will `helm template` the target chart as well as ensure
+// that any YAML files in the the charts "crds" directory are prepended to
+// the returned YAML string -- which are not templated via "helm template" in
+// helm 3.
+//
+// Starting with Helm 3, the "crds" directory of a chart holds a special meaning
+// and holds CRD YAMLs which are not templated -- thus not outputted from
+// `helm template` -- but installed to the cluster via `helm install`. This
+// function is useful to get a complete YAML output for the entire chart.
+func TemplateWithCRDs(opts TemplateOptions) ([]interface{}, error) {
+	// interpertet the chart path based on if a repo-url was provided
+	var chartPath, crdPath string
+	if opts.Repo != "" {
+		tmpDir, err := os.MkdirTemp("", "fabrikate")
+		if err != nil {
+			return nil, fmt.Errorf(`creating temporary directory to pull helm chart %s@%s from %s: %w`, opts.Chart, opts.Version, opts.Repo, err)
+		}
+		defer os.RemoveAll(tmpDir)
+		if err := Pull(opts.Repo, opts.Chart, opts.Version, tmpDir); err != nil {
+			return nil, fmt.Errorf(`pulling helm chart %s@%s from %s: %w`, opts.Chart, opts.Version, opts.Repo, err)
+		}
+		chartPath = filepath.Join(tmpDir, opts.Chart)
+	} else {
+		chartPath = opts.Chart
+	}
+	crdPath = filepath.Join(chartPath, "crds")
+
+	// walk the "crds" dir to collect all the yaml strings
+	var crds []string // list of crd yaml <strings>
+	if info, err := os.Stat(crdPath); err == nil {
+		if info.IsDir() {
+			err := filepath.Walk(crdPath, func(path string, info fs.FileInfo, err error) error {
+				if err != nil {
+					return fmt.Errorf(`walking path %s: %w`, path, err)
+				}
+				extension := strings.ToLower(filepath.Ext(info.Name()))
+				// track all yaml files
+				if !info.IsDir() && extension == ".yaml" {
+					crd, err := os.ReadFile(path)
+					if err != nil {
+						return fmt.Errorf("reading CRD file %s: %w", path, err)
+					}
+					crds = append(crds, string(crd))
+				}
+				return nil
+			})
+			if err != nil {
+				return nil, fmt.Errorf(`walking CRD path %s: %w`, crdPath, err)
+			}
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf(`reading helm chart CRD directory %s: %w`, crdPath, err)
+	}
+
+	// run `helm template` to get the contents of the pulled chart
+	templateOpts := opts           // inherit all the initial settings
+	templateOpts.Repo = ""         // zero out so it wont attempt to lookup the repo
+	templateOpts.Chart = chartPath // manually set the path of the chart to the downloaded chart
+	template, err := Template(templateOpts)
+	if err != nil {
+		return nil, fmt.Errorf(`templating helm chart at %s: %w`, templateOpts.Chart, err)
+	}
+
+	// join all the yaml together with "---"
+	allYAMLEntries := append(crds, template)
+	unifiedYAMLString := strings.TrimSpace(strings.Join(allYAMLEntries, "\n---\n"))
+
+	// convert to maps and remove all nils
+	var maps, noNils []interface{}
+	maps, err = fabYaml.Decode([]byte(unifiedYAMLString))
+	if err != nil {
+		return nil, fmt.Errorf(`parsing output of "helm template": %w`, err)
+	}
+	for _, m := range maps {
+		if m != nil {
+			noNils = append(noNils, m)
+		}
+	}
+
+	return noNils, nil
+}
+
+// Template runs `helm template` on the chart specified by opts.
+// Returns the string output of stdout for `helm template`.
+// Will have a non-nil error if an error occurs when running the command or the
+// command outputs ANYTHING to stdout.
+//
+// NOTE in Helm 3, CRDs in the "crds" directory of the chart are not outputted
+// from `helm template` but are installed via `helm install`
 func Template(opts TemplateOptions) (string, error) {
 	templateArgs := []string{"template"}
 	if opts.Release != "" {
 		templateArgs = append(templateArgs, "--release-name", opts.Release)
 	}
-	if opts.RepoURL != "" {
-		templateArgs = append(templateArgs, "--repo", opts.RepoURL)
+	if opts.Repo != "" {
+		// if an existing helm repo exists on the helm client, use that for templating
+		existingRepo, err := FindRepoNameByURL(opts.Repo)
+		if err != nil {
+			return "", fmt.Errorf(`searching existing helm repositories for %s: %w`, opts.Repo, err)
+		}
+		if existingRepo != "" {
+			opts.Chart = existingRepo + "/" + opts.Chart
+		} else {
+			// if an existing repo is not found, use the --repo option to pull from network
+			templateArgs = append(templateArgs, "--repo", opts.Repo)
+		}
 	}
 	if opts.Namespace != "" {
 		templateArgs = append(templateArgs, "--create-namespace", "--namespace", opts.Namespace)
+	}
+	for _, set := range opts.Set {
+		templateArgs = append(templateArgs, "--set", set)
 	}
 	for _, yamlPath := range opts.Values {
 		templateArgs = append(templateArgs, "--values", yamlPath)
@@ -44,6 +151,9 @@ func Template(opts TemplateOptions) (string, error) {
 
 	if err := templateCmd.Run(); err != nil {
 		return "", fmt.Errorf(`running "%s": %v: %v`, templateCmd, err, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		return "", fmt.Errorf(`"%s" exited with output to stderr: %s`, templateCmd, stderr.String())
 	}
 
 	return stdout.String(), nil

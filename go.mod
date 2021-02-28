@@ -3,7 +3,7 @@ module github.com/microsoft/fabrikate
 go 1.16
 
 require (
-	github.com/google/go-github/v28 v28.0.1
+	github.com/google/go-github/v33 v33.0.0
 	github.com/google/uuid v1.1.1
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/kyokomi/emoji v2.1.0+incompatible
