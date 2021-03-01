@@ -49,4 +49,5 @@ func main() {
 	fmt.Printf("%+v\n", v)
 
 	fmt.Println(v.IsHelm3())
+
 }

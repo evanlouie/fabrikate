@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v33/github"
+	"github.com/microsoft/fabrikate/internal/helm"
 )
 
 func decompressedGZippedBin(body []byte) ([]byte, error) {
@@ -74,10 +75,10 @@ func decompressZippedBin(body []byte) ([]byte, error) {
 	return nil, fmt.Errorf(`no file named "helm.exe" found in zip file`)
 }
 
-// DownloadLatest downloads the helm latest binary from the latest release from
+// downloadLatest downloads the helm latest binary from the latest release from
 // github for the OS corresponding to runtime.GOOS and return it as a byte
 // slice.
-func DownloadLatest() ([]byte, error) {
+func downloadLatest() ([]byte, error) {
 	// get the latest github release
 	client := github.NewClient(nil)
 	release, _, err := client.Repositories.GetLatestRelease(context.Background(), "helm", "Helm")
@@ -137,28 +138,46 @@ func DownloadLatest() ([]byte, error) {
 	return helmBinBytes, nil
 }
 
+// Install the latest Helm release to a temporary file on the host. Returns a
+// the path to the installed binary.
+// It is the users callers responsibility to ensure that the file is cleaned up.
+func Install() (string, error) {
+	// create a temp file and write out helm to it
+	f, tmpErr := os.CreateTemp("", "fabrikate")
+	if tmpErr != nil {
+		return "", fmt.Errorf(`creating temporary file to hold downloaded helm binary: %w`, tmpErr)
+	}
+	downloadedBytes, downloadErr := downloadLatest()
+	if downloadErr != nil {
+		return "", fmt.Errorf(`downloaded latest helm release: %w`, downloadErr)
+	}
+
+	// write the bytes out to the temp file and return the temp file path
+	if _, err := f.Write(downloadedBytes); err != nil {
+		return "", fmt.Errorf(`writing downloaded helm binary to temporary file %s: %w`, f.Name(), err)
+	}
+
+	// make the type file is executable
+	if err := os.Chmod(f.Name(), os.ModePerm); err != nil {
+		return "", fmt.Errorf(`setting permission %s to downloaded Helm binary %s`, os.ModePerm, f.Name())
+	}
+
+	return f.Name(), nil
+}
+
+// GetHelm gets the path to a Helm 3 binary first searching for it on the user
+// $PATH or installing it to a temporary file if it is not found.
 func GetHelm() (string, error) {
 	helmPath, err := exec.LookPath("helm")
 	switch {
 	case err == exec.ErrNotFound:
-		// create a temp file and write out helm to it
-		f, tmpErr := os.CreateTemp("", "fabrikate")
-		if tmpErr != nil {
-			return "", fmt.Errorf(`creating temporary file to hold downloaded helm binary: %w`, tmpErr)
-		}
-		downloadedBytes, downloadErr := DownloadLatest()
-		if downloadErr != nil {
-			return "", fmt.Errorf(`downloaded latest helm release: %w`, downloadErr)
-		}
-
-		// write the bytes out to the temp file and return the temp file path
-		if _, err := f.Write(downloadedBytes); err != nil {
-			return "", fmt.Errorf(`writing downloaded helm binary to temporary file %s: %w`, f.Name(), err)
-		}
-		return f.Name(), nil
+		return Install()
 	case err != nil:
 		return "", fmt.Errorf(`finding "helm" in $PATH: %w`, err)
 	default:
-		return helmPath, nil
+		if v, err := helm.Version(); err == nil && v.IsHelm3() {
+			return helmPath, nil
+		}
+		return Install()
 	}
 }
