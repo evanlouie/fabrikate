@@ -9,6 +9,9 @@ import (
 
 // Pull will do a `helm pull` for the target chart and extract the chart to
 // `into`.
+// If an existing repository is found in in the host helm client with same
+// repository URL, the chart will be pulled from that repository instead of
+// using the "--repo" option.
 // Note that the directory structure will look like: <into>/<chart>/Chart.yaml
 func Pull(repoURL string, chart string, version string, into string) error {
 	// check if existing repo with same URL in host client

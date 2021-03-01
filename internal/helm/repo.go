@@ -24,7 +24,7 @@ func RepoList() (list []RepoListEntry, err error) {
 	listCmd.Stdout = &stdout
 	listCmd.Stderr = &stderr
 	if err := listCmd.Run(); err != nil {
-		return list, fmt.Errorf(`running "%s"; %w: %v`, listCmd, err, stderr.String())
+		return list, fmt.Errorf(`running "%s": %w: %v`, listCmd, err, stderr.String())
 	}
 
 	if err := json.Unmarshal(stdout.Bytes(), &list); err != nil {
@@ -45,7 +45,7 @@ func RepoAdd(name string, url string) error {
 	addCmd.Stdout = &stdout
 	addCmd.Stderr = &stderr
 	if err := addCmd.Run(); err != nil {
-		return fmt.Errorf(`running "%s"; %w: %v`, addCmd, err, stderr.String())
+		return fmt.Errorf(`running "%s": %w: %v`, addCmd, err, stderr.String())
 	}
 
 	return nil
@@ -62,7 +62,7 @@ func RepoRemove(name string) error {
 	removeCmd.Stdout = &stdout
 	removeCmd.Stderr = &stderr
 	if err := removeCmd.Run(); err != nil {
-		return fmt.Errorf(`running "%s"; %v: %v`, removeCmd, err, stderr.String())
+		return fmt.Errorf(`running "%s": %v: %v`, removeCmd, err, stderr.String())
 	}
 
 	return nil
@@ -75,7 +75,7 @@ func RepoRemove(name string) error {
 func FindRepoNameByURL(URL string) (string, error) {
 	repositories, err := RepoList()
 	if err != nil {
-		return "", fmt.Errorf(`getting helm repository list from host client via "helm repo list": %w`, err)
+		return "", fmt.Errorf(`getting helm repo list: %w`, err)
 	}
 	for _, entry := range repositories {
 		if entry.URL == URL {

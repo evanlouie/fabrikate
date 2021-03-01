@@ -19,7 +19,7 @@ func Decode(doc []byte) ([]interface{}, error) {
 		err := decoder.Decode(&value)
 		switch {
 		case err == io.EOF:
-			// base case: return the value
+			// base case: eof; return the value
 			return values, nil
 		case err != nil:
 			// error case: return the error
@@ -34,7 +34,7 @@ func Decode(doc []byte) ([]interface{}, error) {
 // DecodeMaps will decode a single or multi-document yaml body into a slice of
 // map[string]interface{}.
 // This is primarily useful for when trying to decode large yaml strings
-// containing strings documents such as Kubernetes yaml.
+// containing one or more documents such as Kubernetes yaml.
 func DecodeMaps(doc []byte) ([]map[string]interface{}, error) {
 	// decode the docs
 	values, err := Decode(doc)

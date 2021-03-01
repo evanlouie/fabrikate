@@ -15,14 +15,21 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// TemplateOptions encapsulate the options for `helm template`
+// TemplateOptions encapsulate the options for `helm template`.
+// helm template \
+//   --repo <Repo> \
+//   --version <Version> \
+//   --namespace <Namespace> --create-namespace \
+//   --values <Values[0]> --values <Value[1]> ... \
+//   --set <Set[0]> --set <Set[1]> ... \
+//   <Release> <Chart>
 type TemplateOptions struct {
-	Release   string
-	Repo      string
-	Chart     string
-	Version   string
-	Namespace string
-	Values    []string
+	Release   string   // [NAME]
+	Chart     string   // [CHART]
+	Repo      string   // --repo
+	Version   string   // --version
+	Namespace string   // --namespace flag. implies --create-namespace
+	Values    []string // "--value" flags. e.g.: ["foo/bar.yaml", "/etc/my/values.yaml"] == "--values foo/bar.yaml -- values /et/my/values.yaml"
 	Set       []string // "--set" flags. e.g: ["foo=bar", "baz=123"] == "--set foo=bar --set baz=123"
 }
 
@@ -35,7 +42,7 @@ type TemplateOptions struct {
 // and holds CRD YAMLs which are not templated -- thus not outputted from
 // `helm template` -- but installed to the cluster via `helm install`. This
 // function is useful to get a complete YAML output for the entire chart.
-func TemplateWithCRDs(opts TemplateOptions) ([]interface{}, error) {
+func TemplateWithCRDs(opts TemplateOptions) ([]map[string]interface{}, error) {
 	// interpertet the chart path based on if a repo-url was provided
 	var chartPath, crdPath string
 	if opts.Repo != "" {
@@ -94,8 +101,8 @@ func TemplateWithCRDs(opts TemplateOptions) ([]interface{}, error) {
 	unifiedYAMLString := strings.TrimSpace(strings.Join(allYAMLEntries, "\n---\n"))
 
 	// convert to maps and remove all nils
-	var maps, noNils []interface{}
-	maps, err = fabYaml.Decode([]byte(unifiedYAMLString))
+	var maps, noNils []map[string]interface{}
+	maps, err = fabYaml.DecodeMaps([]byte(unifiedYAMLString))
 	if err != nil {
 		return nil, fmt.Errorf(`parsing output of "helm template": %w`, err)
 	}
@@ -117,9 +124,6 @@ func TemplateWithCRDs(opts TemplateOptions) ([]interface{}, error) {
 // from `helm template` but are installed via `helm install`
 func Template(opts TemplateOptions) (string, error) {
 	templateArgs := []string{"template"}
-	if opts.Release != "" {
-		templateArgs = append(templateArgs, "--release-name", opts.Release)
-	}
 	if opts.Repo != "" {
 		// if an existing helm repo exists on the helm client, use that for templating
 		existingRepo, err := FindRepoNameByURL(opts.Repo)
@@ -141,6 +145,11 @@ func Template(opts TemplateOptions) (string, error) {
 	}
 	for _, yamlPath := range opts.Values {
 		templateArgs = append(templateArgs, "--values", yamlPath)
+	}
+
+	// a helm release [NAME] is specified as an optional leading parameter to the [CHART]
+	if opts.Release != "" {
+		templateArgs = append(templateArgs, opts.Release)
 	}
 	templateArgs = append(templateArgs, opts.Chart)
 
@@ -181,6 +190,40 @@ func injectNamespace(manifest map[string]interface{}, namespace string) (map[str
 }
 
 func injectNamespaceBack(unifiedManifest string, namespace string) (string, error) {
+	manifests, err := fabYaml.DecodeMaps([]byte(unifiedManifest))
+	if err != nil {
+		return "", fmt.Errorf(`unmarshalling yaml into []map[string]interface{}: %s: %w`, unifiedManifest, err)
+	}
+
+	// add namespace to manifest metdata ONLY if it does not already have one
+	var withInjectedNS []string
+	for _, manifest := range manifests {
+		// nil? create the metadata map
+		if manifest["metadata"] == nil {
+			manifest["metadata"] = map[string]interface{}{
+				"namespace": namespace,
+			}
+		} else {
+			metadata, ok := manifest["metadata"].(map[string]interface{})
+			// only add the namespace if the "metadata" is a map and namespace is not set
+			if !ok {
+				// its not a map[string]interface{}? error!
+				return "", fmt.Errorf(`"metadata" of manifest is not a map[string]interface{}: %+v`, manifest)
+			} else if ok && metadata["namespace"] == nil || metadata["namespace"] == "" {
+				// is it a map[string]interface{} with a zero value for "namespace"? set the namespace
+				metadata["namespace"] = namespace
+			}
+		}
+
+		marshalBytes, err := yaml.Marshal(manifest)
+		if err != nil {
+			return "", fmt.Errorf(`marshalling yaml for %+v: %w`, manifest, err)
+		}
+		withInjectedNS = append(withInjectedNS, string(marshalBytes))
+	}
+
+	return strings.Join(withInjectedNS, "\n---\n"), nil
+
 	// split the unified manifest string by "---"
 	dividerRgx := regexp.MustCompile(`^---$`)
 	manifestStrings := dividerRgx.Split(unifiedManifest, -1)
@@ -239,4 +282,14 @@ func cleanManifest(manifest string) (string, error) {
 	// re-join based on yaml divider
 	joined := strings.TrimSpace(strings.Join(cleaned, "\n---"))
 	return joined, nil
+}
+
+func createNamespace(name string) map[string]interface{} {
+	return map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "Namespace",
+		"metadata": map[string]interface{}{
+			"name": name,
+		},
+	}
 }

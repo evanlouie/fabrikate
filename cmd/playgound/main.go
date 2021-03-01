@@ -50,4 +50,18 @@ func main() {
 
 	fmt.Println(v.IsHelm3())
 
+	foo := map[string]interface{}{
+		"foo": 123,
+		// "bar": map[string]interface{}{},
+	}
+
+	bar, ok := foo["bar"].(map[string]interface{})
+	fmt.Println(ok)
+	fmt.Println(bar)
+	bar = map[string]interface{}{}
+	foo["bar"] = bar
+	// bar["baz"] = 123
+
+	fmt.Printf("%+v\n", foo)
+	fmt.Printf("%+v\n", foo["baz"])
 }
