@@ -31,18 +31,34 @@ func Version() (v BuildInfo, err error) {
 		return v, fmt.Errorf(`running %s: %s`, cmd, stderr.String())
 	}
 
+	// Build the regex for parsing the BuildInfo
+	// regex capture group names
+	const (
+		Version      = "Version"
+		GitCommit    = "GitCommit"
+		GitTreeState = "GitTreeState"
+		GoVersion    = "GoVersion"
+	)
+	var (
+		rgxString = fmt.Sprintf(`(?i)%s:"(?P<%s>v\d+\.\d+\.\d+)".*%s:"(?P<%s>[^"]+)".*%s:"(?P<%s>[^"]+)".*%s:"(?P<%s>[^"]+)"`,
+			Version, Version,
+			GitCommit, GitCommit,
+			GitTreeState, GitTreeState,
+			GoVersion, GoVersion,
+		)
+		versionRgx = regexp.MustCompile(rgxString)
+	)
+
 	// capture against stdout
-	rgx := regexp.MustCompile(`(?i)Version:"(?P<Version>v\d+\.\d+\.\d+)".*GitCommit:"(?P<GitCommit>[^"]+)".*GitTreeState:"(?P<GitTreeState>[^"]+)".*GoVersion:"(?P<GoVersion>[^"]+)"`)
-	matchNames := rgx.SubexpNames()
-	for idx, matchValue := range rgx.FindStringSubmatch(stdout.String()) {
-		switch matchNames[idx] {
-		case "Version":
+	for idx, matchValue := range versionRgx.FindStringSubmatch(stdout.String()) {
+		switch versionRgx.SubexpNames()[idx] {
+		case Version:
 			v.Version = matchValue
-		case "GitCommit":
+		case GitCommit:
 			v.GitCommit = matchValue
-		case "GitTreeState":
+		case GitTreeState:
 			v.GitTreeState = matchValue
-		case "GoVersion":
+		case GoVersion:
 			v.GoVersion = matchValue
 		}
 	}
@@ -50,24 +66,28 @@ func Version() (v BuildInfo, err error) {
 	return v, err
 }
 
-// parse a semantic version the output of the BuildInfo outputted from
+// Parse a semantic version the output of the BuildInfo outputted from
 // `helm template` into struct of ints.
-func (v BuildInfo) parse() (parsed struct{ major, minor, fix int }, err error) {
+func (v BuildInfo) Parse() (parsed struct{ Major, Minor, Fix int }, err error) {
 	// regex capture group names
-	const major = "Major"
-	const minor = "Minor"
-	const fix = "Fix"
+	const (
+		major = "Major"
+		minor = "Minor"
+		fix   = "Fix"
+	)
 	// build the regex string and compile
-	rgxStr := fmt.Sprintf(`(?i)v(?P<%s>\d+)\.(?P<%s>\d+)\.(?P<%s>\d+)`, major, minor, fix)
-	semVerRgx := regexp.MustCompile(rgxStr)
+	var (
+		rgxStr    = fmt.Sprintf(`(?i)v(?P<%s>\d+)\.(?P<%s>\d+)\.(?P<%s>\d+)`, major, minor, fix)
+		semVerRgx = regexp.MustCompile(rgxStr)
+	)
 
 	// iterate over captures and assign values to parsed
 	for idx, value := range semVerRgx.FindStringSubmatch(v.Version) {
 		captureName := semVerRgx.SubexpNames()[idx]
-		var valueAsInt int
 		// atoi the value if it is in a named capture group ("Major", "Minor", "Fix")
-		// WARN should never reach error case unless additional capture groups are
+		// NOTE should never reach error case unless additional capture groups are
 		// added to the regex which try to capture non-atoi-able strings.
+		var valueAsInt int
 		if captureName != "" {
 			var err error
 			valueAsInt, err = strconv.Atoi(value)
@@ -79,11 +99,11 @@ func (v BuildInfo) parse() (parsed struct{ major, minor, fix int }, err error) {
 		// assign based on the capture group name
 		switch captureName {
 		case major:
-			parsed.major = valueAsInt
+			parsed.Major = valueAsInt
 		case minor:
-			parsed.minor = valueAsInt
+			parsed.Minor = valueAsInt
 		case fix:
-			parsed.fix = valueAsInt
+			parsed.Fix = valueAsInt
 		}
 	}
 

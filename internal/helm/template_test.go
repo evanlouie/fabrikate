@@ -231,7 +231,7 @@ func TestTemplateWithCRDs(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    []interface{}
+		want    []map[string]interface{}
 		wantErr bool
 	}{
 		{
@@ -247,8 +247,8 @@ func TestTemplateWithCRDs(t *testing.T) {
 				Release: "random-chart",
 				Set:     []string{"testValue=foobar"},
 			}},
-			[]interface{}{
-				map[string]interface{}{
+			[]map[string]interface{}{
+				{
 					"apiVersion": "apiextensions.k8s.io/v1beta1",
 					"kind":       "CustomResourceDefinition",
 					"metadata": map[string]interface{}{
@@ -265,7 +265,7 @@ func TestTemplateWithCRDs(t *testing.T) {
 						"scope": "Namespaced",
 					},
 				},
-				map[string]interface{}{
+				{
 					"apiVersion": "apiextensions.k8s.io/v1beta1",
 					"kind":       "CustomResourceDefinition",
 					"metadata": map[string]interface{}{
@@ -282,7 +282,7 @@ func TestTemplateWithCRDs(t *testing.T) {
 						"scope": "Namespaced",
 					},
 				},
-				map[string]interface{}{
+				{
 					"apiVersion": "v1",
 					"kind":       "Service",
 					"metadata": map[string]interface{}{
@@ -292,7 +292,7 @@ func TestTemplateWithCRDs(t *testing.T) {
 						"testValue": "foobar",
 					},
 				},
-				map[string]interface{}{
+				{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
 					"metadata": map[string]interface{}{

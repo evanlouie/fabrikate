@@ -1,23 +1,29 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 
 	"github.com/microsoft/fabrikate/internal/helm"
 )
 
+type BuildInfo struct {
+	Version      string
+	GitCommit    string
+	GitTreeState string
+	GoVersion    string
+}
+
 func main() {
-	out, err := helm.TemplateWithCRDs(helm.TemplateOptions{
-		Chart:   "traefik",
-		Repo:    "https://helm.traefik.io/traefik",
-		Version: "9.14.3",
-		Release: "traefik",
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+	// out, err := helm.TemplateWithCRDs(helm.TemplateOptions{
+	// 	Chart:   "traefik",
+	// 	Repo:    "https://helm.traefik.io/traefik",
+	// 	Version: "9.14.3",
+	// 	Release: "traefik",
+	// })
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	// fmt.Println(out)
 
@@ -35,33 +41,21 @@ func main() {
 	// }
 	// fmt.Println(string(b))
 
-	b, err := json.MarshalIndent(out, "", "  ")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(string(b))
-
-	v, err := helm.Version()
+	buildInfo, err := helm.Version()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("%+v\n", v)
-
-	fmt.Println(v.IsHelm3())
-
-	foo := map[string]interface{}{
-		"foo": 123,
-		// "bar": map[string]interface{}{},
+	fmt.Printf("%+v\n", buildInfo)
+	fmt.Println(buildInfo.IsHelm2())
+	fmt.Println(buildInfo.IsHelm3())
+	parsed, err := buildInfo.Parse()
+	if err != nil {
+		log.Fatal(err)
 	}
+	fmt.Printf("%+v\n", parsed)
 
-	bar, ok := foo["bar"].(map[string]interface{})
-	fmt.Println(ok)
-	fmt.Println(bar)
-	bar = map[string]interface{}{}
-	foo["bar"] = bar
-	// bar["baz"] = 123
-
-	fmt.Printf("%+v\n", foo)
-	fmt.Printf("%+v\n", foo["baz"])
+	var foo []string
+	foo = append(foo, "foo", "bar", "baz")
+	fmt.Println(foo[10])
 }

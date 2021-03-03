@@ -46,7 +46,7 @@ func Pull(repoURL string, chart string, version string, into string) error {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("%w: %v", err, stderr.String())
+		return fmt.Errorf(`running "%s": %s: %w`, cmd, stderr.String(), err)
 	}
 
 	return nil

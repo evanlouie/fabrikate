@@ -17,12 +17,12 @@ import (
 
 // TemplateOptions encapsulate the options for `helm template`.
 // helm template \
-//   --repo <Repo> \
-//   --version <Version> \
-//   --namespace <Namespace> --create-namespace \
-//   --values <Values[0]> --values <Value[1]> ... \
-//   --set <Set[0]> --set <Set[1]> ... \
-//   <Release> <Chart>
+//   [ --repo <Repo> ] \
+//   [ --version <Version> ] \
+//   [ --namespace <Namespace> --create-namespace ] \
+//   [ --values <Values[0]> --values <Value[1]> ... ] \
+//   [ --set <Set[0]> --set <Set[1]> ... ] \
+//   [Release] <Chart>
 type TemplateOptions struct {
 	Release   string   // [NAME]
 	Chart     string   // [CHART]
@@ -159,7 +159,7 @@ func Template(opts TemplateOptions) (string, error) {
 	templateCmd.Stderr = &stderr
 
 	if err := templateCmd.Run(); err != nil {
-		return "", fmt.Errorf(`running "%s": %v: %v`, templateCmd, err, stderr.String())
+		return "", fmt.Errorf(`running "%s": %s: %w`, templateCmd, stderr.String(), err)
 	}
 	if stderr.Len() != 0 {
 		return "", fmt.Errorf(`"%s" exited with output to stderr: %s`, templateCmd, stderr.String())

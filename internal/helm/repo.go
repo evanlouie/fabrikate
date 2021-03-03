@@ -24,7 +24,7 @@ func RepoList() (list []RepoListEntry, err error) {
 	listCmd.Stdout = &stdout
 	listCmd.Stderr = &stderr
 	if err := listCmd.Run(); err != nil {
-		return list, fmt.Errorf(`running "%s": %w: %v`, listCmd, err, stderr.String())
+		return list, fmt.Errorf(`running "%s": %s: %w`, listCmd, stderr.String(), err)
 	}
 
 	if err := json.Unmarshal(stdout.Bytes(), &list); err != nil {
@@ -45,7 +45,7 @@ func RepoAdd(name string, url string) error {
 	addCmd.Stdout = &stdout
 	addCmd.Stderr = &stderr
 	if err := addCmd.Run(); err != nil {
-		return fmt.Errorf(`running "%s": %w: %v`, addCmd, err, stderr.String())
+		return fmt.Errorf(`running "%s": %s: %w`, addCmd, stderr.String(), err)
 	}
 
 	return nil
@@ -62,7 +62,7 @@ func RepoRemove(name string) error {
 	removeCmd.Stdout = &stdout
 	removeCmd.Stderr = &stderr
 	if err := removeCmd.Run(); err != nil {
-		return fmt.Errorf(`running "%s": %v: %v`, removeCmd, err, stderr.String())
+		return fmt.Errorf(`running "%s": %s: %w`, removeCmd, stderr.String(), err)
 	}
 
 	return nil
