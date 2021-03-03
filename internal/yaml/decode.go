@@ -50,7 +50,7 @@ func DecodeMaps(doc []byte) ([]map[string]interface{}, error) {
 			var ok bool
 			decoded, ok = value.(map[string]interface{})
 			if !ok {
-				return nil, fmt.Errorf(`unable to reflect value %+v as a map[string]interface{}`, value)
+				return nil, fmt.Errorf(`unable to assert value %+v as a map[string]interface{}`, value)
 			}
 		}
 		maps = append(maps, decoded)

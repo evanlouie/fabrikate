@@ -78,21 +78,23 @@ foo:
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Encode(tt.args.docs)
+			got, err := Encode(tt.args.docs...)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Encode() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
-			// Remove all white space to make comparing easier...
+			// Do string comparison with all white space removed to make the test
+			// simpler.
 			// TODO see if we can make the tests precise enough to not need white
 			// space removal
-			got = strings.ReplaceAll(got, " ", "")
-			got = strings.ReplaceAll(got, "\n", "")
-			tt.want = strings.ReplaceAll(tt.want, " ", "")
-			tt.want = strings.ReplaceAll(tt.want, "\n", "")
-			if got != tt.want {
-				t.Errorf("Encode() = %v, want %v", got, tt.want)
+			gotStr := strings.ReplaceAll(string(got), " ", "")
+			gotStr = strings.ReplaceAll(gotStr, "\n", "")
+			wantStr := strings.ReplaceAll(string(tt.want), " ", "")
+			wantStr = strings.ReplaceAll(wantStr, "\n", "")
+			if gotStr != wantStr {
+				// print as %s instead of %v so the error is human readable
+				t.Errorf("Encode() = %s, want %s", got, []byte(tt.want))
 			}
 		})
 	}
