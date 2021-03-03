@@ -8,11 +8,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	fabYaml "github.com/microsoft/fabrikate/internal/yaml"
-	"gopkg.in/yaml.v3"
 )
 
 // TemplateOptions encapsulate the options for `helm template`.
@@ -178,110 +176,16 @@ func injectNamespace(manifest map[string]interface{}, namespace string) (map[str
 	}
 
 	metadata, ok := manifest["metadata"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf(`reflecting metadata of yaml manifest: %+v`, manifest)
-	}
-	if metadata["namespace"] != nil {
+	switch {
+	case !ok:
+		return nil, fmt.Errorf(`asserting metadata of yaml manifest is map[string]interface{}: %+v`, manifest)
+	case metadata["namespace"] != nil:
 		return nil, fmt.Errorf(`existing namespace found in yaml: %+v`, manifest)
+	default:
+		metadata["namespace"] = namespace
 	}
-	metadata["namespace"] = namespace
 
 	return manifest, nil
-}
-
-func injectNamespaceBack(unifiedManifest string, namespace string) (string, error) {
-	manifests, err := fabYaml.DecodeMaps([]byte(unifiedManifest))
-	if err != nil {
-		return "", fmt.Errorf(`unmarshalling yaml into []map[string]interface{}: %s: %w`, unifiedManifest, err)
-	}
-
-	// add namespace to manifest metdata ONLY if it does not already have one
-	var withInjectedNS []string
-	for _, manifest := range manifests {
-		// nil? create the metadata map
-		if manifest["metadata"] == nil {
-			manifest["metadata"] = map[string]interface{}{
-				"namespace": namespace,
-			}
-		} else {
-			metadata, ok := manifest["metadata"].(map[string]interface{})
-			// only add the namespace if the "metadata" is a map and namespace is not set
-			if !ok {
-				// its not a map[string]interface{}? error!
-				return "", fmt.Errorf(`"metadata" of manifest is not a map[string]interface{}: %+v`, manifest)
-			} else if ok && metadata["namespace"] == nil || metadata["namespace"] == "" {
-				// is it a map[string]interface{} with a zero value for "namespace"? set the namespace
-				metadata["namespace"] = namespace
-			}
-		}
-
-		marshalBytes, err := yaml.Marshal(manifest)
-		if err != nil {
-			return "", fmt.Errorf(`marshalling yaml for %+v: %w`, manifest, err)
-		}
-		withInjectedNS = append(withInjectedNS, string(marshalBytes))
-	}
-
-	return strings.Join(withInjectedNS, "\n---\n"), nil
-
-	// split the unified manifest string by "---"
-	dividerRgx := regexp.MustCompile(`^---$`)
-	manifestStrings := dividerRgx.Split(unifiedManifest, -1)
-
-	// parse and inject the namespace into the parsed map
-	var injectedManifests []string
-	for _, entry := range manifestStrings {
-		var m map[interface{}]interface{}
-		if err := yaml.Unmarshal([]byte(entry), &m); err != nil {
-			return "", fmt.Errorf(`unmarshalling YAML string %s: %w`, entry, err)
-		}
-		if m["metadata"] != nil {
-			metadata, ok := m["metadata"].(map[string]interface{})
-			if !ok {
-				return "", fmt.Errorf(`reflecting metadata of yaml manifest: %+v`, m)
-			}
-			if metadata["namespace"] == nil {
-				metadata["namespace"] = namespace
-			}
-		}
-		asBytes, err := yaml.Marshal(m)
-		if err != nil {
-			return "", fmt.Errorf(`marshalling namespace injected YAML %+v: %w`, m, err)
-		}
-		injectedManifests = append(injectedManifests, string(asBytes))
-	}
-
-	// re-join the strings with "---"
-	withNS := strings.TrimSpace(strings.Join(injectedManifests, "\n---\n"))
-
-	return strings.TrimSpace(withNS), nil
-}
-
-// cleanManifest parses either a yaml document (or list of documents delimitted
-// by "---") and removes entries that are not of type map[string]interface{}.
-//
-// TODO find out if this is needed in helm 3
-func cleanManifest(manifest string) (string, error) {
-	// split based on yaml divider
-	manifests := strings.Split(manifest, "\n---")
-
-	// remove all invalid yaml
-	var cleaned []string
-	for _, entry := range manifests {
-		var m map[string]interface{}
-		// if it doesn't unmarshal properly, do not add
-		if err := yaml.Unmarshal([]byte(entry), &m); err != nil {
-			continue
-		}
-		// only append documents with a non-empty body
-		if len(strings.TrimSpace(entry)) > 0 {
-			cleaned = append(cleaned, entry)
-		}
-	}
-
-	// re-join based on yaml divider
-	joined := strings.TrimSpace(strings.Join(cleaned, "\n---"))
-	return joined, nil
 }
 
 func createNamespace(name string) map[string]interface{} {

@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -80,7 +79,6 @@ func Test_injectNamespace(t *testing.T) {
 			},
 			wantErr: false,
 		},
-
 		{
 			name: "with-metadata-no-namespace",
 			args: args{
@@ -105,7 +103,23 @@ func Test_injectNamespace(t *testing.T) {
 			},
 			wantErr: false,
 		},
-
+		{
+			name: "with-metadata-empty-string-namespace",
+			args: args{
+				manifest: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":      "nginx-deployment",
+						"namespace": "",
+						"labels": map[string]interface{}{
+							"app": "nginx",
+						},
+					},
+				},
+				namespace: "foo",
+			},
+			want:    nil,
+			wantErr: true,
+		},
 		{
 			name: "with-metadata-with-namespace",
 			args: args{
@@ -123,7 +137,6 @@ func Test_injectNamespace(t *testing.T) {
 			want:    nil,
 			wantErr: true,
 		},
-
 		{
 			name: "with-invalid-metadata-type",
 			args: args{
@@ -143,6 +156,7 @@ func Test_injectNamespace(t *testing.T) {
 			wantErr: true,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := injectNamespace(tt.args.manifest, tt.args.namespace)
@@ -152,73 +166,6 @@ func Test_injectNamespace(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("injectNamespace() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_cleanManifest(t *testing.T) {
-	type args struct {
-		manifest string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    string
-		wantErr bool
-	}{
-		{
-			name:    "empty",
-			want:    "",
-			wantErr: false,
-		},
-		{
-			name: "single-valid-entry",
-			args: args{
-				manifest: `
-foo: bar
-`,
-			},
-			want: strings.TrimSpace(`
-foo: bar
-`),
-			wantErr: false,
-		},
-		{
-			name: "multiple-some-invalid-entries",
-			args: args{
-				manifest: `
-foo: I am valid
----
-I'm not valid
----
-bar: I am valid
----
-Im not a map
----
-baz: I am valid
----
-`,
-			},
-			want: strings.TrimSpace(`
-foo: I am valid
----
-bar: I am valid
----
-baz: I am valid
-`),
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := cleanManifest(tt.args.manifest)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("cleanManifest() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("cleanManifest() = %v, want %v", got, tt.want)
 			}
 		})
 	}
