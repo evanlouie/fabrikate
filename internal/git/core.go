@@ -18,38 +18,38 @@ import (
 
 // Mutex safe getter
 func (result *gitCloneResult) get() string {
-	result.mu.RLock()
+	result.RLock()
+	defer result.RUnlock()
 	clonePath := result.ClonePath
-	result.mu.RUnlock()
 	return clonePath
 }
 
 // R/W safe map of {[cacheToken]: gitCloneResult}
 type gitCache struct {
-	mu    sync.RWMutex
+	sync.RWMutex
 	cache map[string]*gitCloneResult
 }
 
 // Mutex safe getter
 func (cache *gitCache) get(cacheToken string) (*gitCloneResult, bool) {
-	cache.mu.RLock()
+	cache.RLock()
+	defer cache.RUnlock()
 	value, ok := cache.cache[cacheToken]
-	cache.mu.RUnlock()
 	return value, ok
 }
 
 // Mutex safe setter
 func (cache *gitCache) set(cacheToken string, cloneResult *gitCloneResult) {
-	cache.mu.Lock()
+	cache.Lock()
+	defer cache.Unlock()
 	cache.cache[cacheToken] = cloneResult
-	cache.mu.Unlock()
 }
 
 // A future like struct to hold the result of git clone
 type gitCloneResult struct {
+	sync.RWMutex
 	ClonePath string // The abs path in os.TempDir() where the the item was cloned to
 	Error     error  // An error which occurred during the clone
-	mu        sync.RWMutex
 }
 
 // cache is a global git map cache of {[cacheKey]: gitCloneResult}
@@ -87,9 +87,9 @@ func (cache *gitCache) cloneRepo(repo string, commit string, branch string) chan
 
 		// Add the clone future to cache
 		cloneResult := gitCloneResult{}
-		cloneResult.mu.Lock() // lock the future
+		cloneResult.Lock() // lock the future
 		defer func() {
-			cloneResult.mu.Unlock() // ensure the lock is released
+			cloneResult.Unlock() // ensure the lock is released
 			close(cloneResultChan)
 		}()
 		cache.set(cacheToken, &cloneResult) // store future in cache
@@ -219,17 +219,17 @@ func Clone(opts *CloneOpts) (err error) {
 // git clones.
 func ClearCache() (err error) {
 	logger.Info(emoji.Sprintf(":bomb: Cleaning up git cache..."))
-	cache.mu.Lock()
+	cache.Lock()
 	for key, value := range cache.cache {
 		logger.Info(emoji.Sprintf(":bomb: Removing git cache directory '%s'", value.ClonePath))
 		if err = os.RemoveAll(value.ClonePath); err != nil {
 			logger.Error(emoji.Sprintf(":exclamation: Error deleting temporary directory '%s'", value.ClonePath))
-			cache.mu.Unlock()
+			cache.Unlock()
 			return err
 		}
 		delete(cache.cache, key)
 	}
-	cache.mu.Unlock()
+	cache.Unlock()
 	logger.Info(emoji.Sprintf(":white_check_mark: Completed cache clean!"))
 	return err
 }

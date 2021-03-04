@@ -139,7 +139,7 @@ func clone(repo string, dir string) error {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf(`error cloning git repository "%v" into "%v": %w`, repo, dir, err)
+		return fmt.Errorf(`cloning git repository "%s" into "%s": %w`, repo, dir, err)
 	}
 
 	return nil
@@ -164,7 +164,7 @@ func checkout(repo string, target string) error {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf(`unable to checkout "%v" from in repository "%v": %w`, target, repo, err)
+		return fmt.Errorf(`checking out "%s" from in repository "%s": %s :%w`, target, repo, stderr.String(), err)
 	}
 
 	return nil

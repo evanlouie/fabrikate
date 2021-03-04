@@ -9,6 +9,10 @@ func TestEncode(t *testing.T) {
 	type args struct {
 		docs []interface{}
 	}
+
+	// TODO figure out a good way to test maps with multiple entries.
+	// String comparision does not work because ordering for map entries is not
+	// ensured to be stable.
 	tests := []struct {
 		name    string
 		args    args
@@ -16,13 +20,13 @@ func TestEncode(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			"empty",
+			"zero",
 			args{},
 			"",
 			false,
 		},
 		{
-			"no values",
+			"empty slice",
 			args{
 				[]interface{}{},
 			},
@@ -30,17 +34,21 @@ func TestEncode(t *testing.T) {
 			false,
 		},
 		{
-			"some values",
+			"simple values",
 			args{
 				[]interface{}{
-					1, "foo", "bar",
+					1, "foo", "bar", true, false,
 				},
 			},
 			`1
 ---
 foo
 ---
-bar`,
+bar
+---
+true
+---
+false`,
 			false,
 		},
 		{
@@ -54,6 +62,9 @@ bar`,
 								1,
 								2,
 								"a string",
+								map[string]interface{}{
+									"nested": "map",
+								},
 							},
 						},
 					},
@@ -69,6 +80,7 @@ foo:
     - 1
     - 2
     - a string
+    - nested: map
 ---
 - 1
 - foo
@@ -93,7 +105,6 @@ foo:
 			wantStr := strings.ReplaceAll(string(tt.want), " ", "")
 			wantStr = strings.ReplaceAll(wantStr, "\n", "")
 			if gotStr != wantStr {
-				// print as %s instead of %v so the error is human readable
 				t.Errorf("Encode() = %s, want %s", got, []byte(tt.want))
 			}
 		})
