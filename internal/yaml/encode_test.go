@@ -1,6 +1,7 @@
 package yaml
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -13,34 +14,35 @@ func TestEncode(t *testing.T) {
 	// TODO figure out a good way to test maps with multiple entries.
 	// String comparision does not work because ordering for map entries is not
 	// ensured to be stable.
+	// TODO figure out a how to trigger an encode error
 	tests := []struct {
 		name    string
 		args    args
-		want    string
+		want    []byte
 		wantErr bool
 	}{
 		{
-			"zero",
-			args{},
-			"",
-			false,
+			name:    "zero",
+			args:    args{},
+			want:    nil,
+			wantErr: false,
 		},
 		{
-			"empty slice",
-			args{
+			name: "empty slice",
+			args: args{
 				[]interface{}{},
 			},
-			"",
-			false,
+			want:    nil,
+			wantErr: false,
 		},
 		{
-			"simple values",
-			args{
+			name: "simple values",
+			args: args{
 				[]interface{}{
 					1, "foo", "bar", true, false,
 				},
 			},
-			`1
+			want: []byte(`1
 ---
 foo
 ---
@@ -48,12 +50,12 @@ bar
 ---
 true
 ---
-false`,
-			false,
+false`),
+			wantErr: false,
 		},
 		{
-			"complex values",
-			args{
+			name: "complex values",
+			args: args{
 				[]interface{}{
 					map[string]interface{}{
 						"foo": map[string]interface{}{
@@ -73,7 +75,7 @@ false`,
 					},
 				},
 			},
-			`
+			want: []byte(`
 foo:
   bar: baz
   list:
@@ -84,8 +86,8 @@ foo:
 ---
 - 1
 - foo
-- true`,
-			false,
+- true`),
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
@@ -106,6 +108,69 @@ foo:
 			wantStr = strings.ReplaceAll(wantStr, "\n", "")
 			if gotStr != wantStr {
 				t.Errorf("Encode() = %s, want %s", got, []byte(tt.want))
+			}
+		})
+	}
+}
+
+func TestEncodeNoFailFast(t *testing.T) {
+	type args struct {
+		docs []interface{}
+	}
+	// TODO figure out how to trigger an encode error
+	tests := []struct {
+		name    string
+		args    args
+		want    []byte
+		wantErr bool
+	}{
+		{
+			name:    "zero",
+			args:    args{},
+			want:    nil,
+			wantErr: false,
+		},
+		{
+			name: "empty doc slice",
+			args: args{
+				docs: []interface{}{},
+			},
+			want:    nil,
+			wantErr: false,
+		},
+		{
+			name: "single valid value",
+			args: args{
+				docs: []interface{}{
+					123,
+				},
+			},
+			want:    []byte("123\n"),
+			wantErr: false,
+		},
+		{
+			name: "multiple valid value",
+			args: args{
+				docs: []interface{}{
+					123,
+					"foobar",
+				},
+			},
+			want:    []byte("123\n---\nfoobar\n"),
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := EncodeNoFailFast(tt.args.docs...)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("EncodeNoFailFast() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				// print as %s instead of %v for human readability
+				t.Errorf("EncodeNoFailFast() = %s, want %s", got, tt.want)
 			}
 		})
 	}
