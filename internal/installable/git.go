@@ -1,13 +1,14 @@
 package installable
 
 import (
-	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/microsoft/fabrikate/internal/url"
 )
 
@@ -30,22 +31,9 @@ func (g Git) Install() error {
 	if err := os.RemoveAll(componentPath); err != nil {
 		return fmt.Errorf(`cleaning previous git component installation at "%s": %w`, componentPath, err)
 	}
-	// clone the repo
-	if err := clone(g.URL, componentPath); err != nil {
-		return fmt.Errorf(`cloning git component from "%s" into "%s": %w`, g.URL, componentPath, err)
-	}
-	// checkout target Branch
-	if g.Branch != "" {
-		if err := checkout(componentPath, g.Branch); err != nil {
-			return fmt.Errorf(`checking out branch "%s" in git repo at "%s": %w`, g.Branch, componentPath, err)
-		}
-	}
 
-	// checkout target SHA
-	if g.SHA != "" {
-		if err := checkout(componentPath, g.SHA); err != nil {
-			return fmt.Errorf(`checking out SHA "%s" in git repo at "%s": %w`, g.SHA, componentPath, err)
-		}
+	if err := g.clone(componentPath); err != nil {
+		return fmt.Errorf(`cloning git component from "%s" into "%s": %w`, g.URL, componentPath, err)
 	}
 
 	return nil
@@ -74,10 +62,10 @@ func (g Git) GetInstallPath() (string, error) {
 }
 
 func (g Git) Validate() error {
-	if g.URL == "" {
+	switch {
+	case g.URL == "":
 		return fmt.Errorf(`URL must be non-zero length`)
-	}
-	if g.SHA != "" && g.Branch != "" {
+	case g.SHA != "" && g.Branch != "":
 		return fmt.Errorf(`Only one of SHA or Branch can be provided, "%v" and "%v" provided respectively`, g.SHA, g.Branch)
 	}
 
@@ -88,28 +76,24 @@ func (g Git) Validate() error {
 // Git Helpers
 //------------------------------------------------------------------------------
 
-type coordinator struct {
-	coordinator *sync.Mutex              // lock to ensure only one write has access to locks at a time
-	nodes       map[string]*sync.RWMutex // each lock determines if the key has been successfully cloned
+var cloneCoordinator = struct {
+	sync.Mutex                          // lock to ensure only one write has access to locks at a time
+	nodes      map[string]*sync.RWMutex // key == filepath; value == lock denoting if the filepath has been clone or is cloning
+}{
+	nodes: map[string]*sync.RWMutex{},
 }
 
-var pathCoordinator = coordinator{
-	coordinator: &sync.Mutex{},
-	nodes:       map[string]*sync.RWMutex{},
-}
+// clone performs a `git clone <g.URL> <dir>`
+func (g Git) clone(dir string) error {
+	nodes := cloneCoordinator.nodes
+	cloneCoordinator.Lock() // establish a lock so we can safely read from the map of locks
 
-// clone performs a `git clone <repo> <dir>`
-func clone(repo string, dir string) error {
-	coordinator := pathCoordinator.coordinator
-	nodes := pathCoordinator.nodes
-	coordinator.Lock() // establish a read lock so we can safely read from the map of locks
-
-	// If one exists, we just need to wait for it to become free; establish a lock
-	// and immediately release
+	// If one exists, another thread is cloning it; just need to wait for it to
+	// become free; establish a lock and immediately release
 	if node, exists := nodes[dir]; exists {
 		node.RLock()
-		coordinator.Unlock()
-		node.RUnlock()
+		defer node.RUnlock()
+		cloneCoordinator.Unlock()
 		return nil
 	}
 
@@ -124,47 +108,58 @@ func clone(repo string, dir string) error {
 
 	node, exists := nodes[dir]
 	if !exists {
-		return fmt.Errorf(`error creating mutex lock for cloning repo "%v" to dir "%v"`, repo, dir)
+		return fmt.Errorf(`error creating mutex lock for cloning repo "%v" to dir "%v"`, g.URL, dir)
 	}
 
 	// write lock the path to block others from cloning the same path
 	node.Lock() // establish a write lock so the other readers are blocked
 	defer node.Unlock()
-	coordinator.Unlock()
+	cloneCoordinator.Unlock()
+
+	// Prep the clone args
+	cloneOpts := git.CloneOptions{
+		URL: g.URL,
+		// Progress: os.Stdout, //  TODO encapsulate in a feature flag
+	}
+	// add the branch to clone options if present
+	if g.Branch != "" {
+		cloneOpts.ReferenceName = plumbing.NewBranchReferenceName(g.Branch)
+		cloneOpts.Depth = 1
+	}
 
 	// clone the repo
-	cmd := exec.Command("git", "clone", repo, dir)
-	cmd.Env = append(cmd.Env, os.Environ()...)
-	cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf(`cloning git repository "%s" into "%s": %w`, repo, dir, err)
+	r, err := git.PlainClone(dir, false, &cloneOpts)
+	if err != nil {
+		return fmt.Errorf(`cloning git repository "%s" into "%s": %w`, g.URL, dir, err)
 	}
 
-	return nil
-}
-
-// checkout will perform a `git checkout <target>` for the git repository found
-// at `repo`
-func checkout(repo string, target string) error {
-	coordinator := pathCoordinator.coordinator
-	nodes := pathCoordinator.nodes
-	coordinator.Lock()
-	if _, exists := nodes[target]; !exists {
-		nodes[target] = &sync.RWMutex{}
+	// checkout the SHA if provided
+	if g.SHA != "" {
+		w, err := r.Worktree()
+		if err != nil {
+			return fmt.Errorf(`getting worktree for git repository %s: %w`, dir, err)
+		}
+		if err := w.Checkout(&git.CheckoutOptions{
+			Hash: plumbing.NewHash(g.SHA),
+		}); err != nil {
+			return fmt.Errorf(`checking out SHA "%s" in git repo at "%s": %w`, g.SHA, dir, err)
+		}
 	}
-	node := nodes[target]
-	node.Lock()
-	defer node.Unlock()
-	coordinator.Unlock()
 
-	cmd := exec.Command("git", "checkout", target)
-	cmd.Dir = repo
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf(`checking out "%s" from in repository "%s": %s :%w`, target, repo, stderr.String(), err)
+	// ensure the target branch or SHA is checked out
+	head, err := r.Head()
+	if err != nil {
+		return fmt.Errorf(`getting HEAD of repo at %s: %w`, dir, err)
+	}
+	switch {
+	case g.SHA != "":
+		if head.Hash().String() != g.SHA {
+			return fmt.Errorf(`repo at %s not checked out to target SHA %s: is at %s`, dir, g.SHA, head.Hash())
+		}
+	case g.Branch != "":
+		if !strings.HasSuffix(string(head.Name()), g.Branch) {
+			return fmt.Errorf(`repo at %s not checked out to target branch %s: is at %s`, dir, g.Branch, head.Name())
+		}
 	}
 
 	return nil

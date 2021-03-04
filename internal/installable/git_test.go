@@ -11,6 +11,7 @@ func TestGit_Install(t *testing.T) {
 		SHA    string
 		Branch string
 	}
+	const elasticGitRepo = "https://github.com/elastic/helm-charts"
 	tests := []struct {
 		name    string
 		fields  fields
@@ -32,8 +33,8 @@ func TestGit_Install(t *testing.T) {
 		{
 			name: "kibana--versioned-branch",
 			fields: fields{
-				URL: "https://github.com/elastic/helm-charts",
-				SHA: "master",
+				URL:    "https://github.com/elastic/helm-charts",
+				Branch: "7.11",
 			},
 			wantErr: false,
 		},
@@ -45,16 +46,19 @@ func TestGit_Install(t *testing.T) {
 			wantErr: false,
 		},
 	}
+
 	for _, tt := range tests {
+		// Warn that certain tests require an internet connection clone
+		if tt.fields.URL == elasticGitRepo {
+			t.Logf(`WARNING: this test require an active internet connection to clone %s and may begin to fail if target branches/SHA are removed`, elasticGitRepo)
+		}
+
 		t.Run(tt.name, func(t *testing.T) {
 			g := Git{
 				URL:    tt.fields.URL,
 				SHA:    tt.fields.SHA,
 				Branch: tt.fields.Branch,
 			}
-			t.Cleanup(func() {
-				cleanup(g)
-			})
 			if err := g.Install(); (err != nil) != tt.wantErr {
 				t.Errorf("Git.Install() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -107,6 +111,7 @@ func TestGit_GetInstallPath(t *testing.T) {
 			wantErr: false,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := Git{
@@ -183,48 +188,6 @@ func TestGit_Validate(t *testing.T) {
 			}
 			if err := g.Validate(); (err != nil) != tt.wantErr {
 				t.Errorf("Git.Validate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func Test_clone(t *testing.T) {
-	type args struct {
-		repo string
-		dir  string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := clone(tt.args.repo, tt.args.dir); (err != nil) != tt.wantErr {
-				t.Errorf("clone() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func Test_checkout(t *testing.T) {
-	type args struct {
-		repo   string
-		target string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := checkout(tt.args.repo, tt.args.target); (err != nil) != tt.wantErr {
-				t.Errorf("checkout() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
