@@ -5,7 +5,8 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
-	"strings"
+
+	"github.com/microsoft/fabrikate/internal/strutil"
 )
 
 // PlainIdentity encapsulates the output of `ssh-add`
@@ -38,7 +39,7 @@ func InitializeIdentities() (identities []PlainIdentity, err error) {
 		identityRgxStr = fmt.Sprintf(`(?i)Identity added: (?P<%s>\S+) \((?P<%s>\S+)\)`, Path, Comment)
 		identityRgx    = regexp.MustCompile(identityRgxStr)
 	)
-	for _, line := range strings.Split(string(out), "\n") {
+	for _, line := range strutil.SplitLines(string(out)) {
 		if identityRgx.MatchString(line) {
 			var identity PlainIdentity
 			for idx, match := range identityRgx.FindStringSubmatch(line) {
@@ -72,7 +73,7 @@ func Fingerprints() (prints []Fingerprint, err error) {
 		rgxString  = fmt.Sprintf(`(?i)(?P<%s>\d+) (?P<%s>\S+)(\s(?P<%s>\S+))? \((?P<%s>\S+)\)`, BitLength, Print, Comment, Encryption)
 		rgx        = regexp.MustCompile(rgxString)
 	)
-	for _, line := range strings.Split(string(out), "\n") {
+	for _, line := range strutil.SplitLines(string(out)) {
 		if rgx.MatchString(line) {
 			var print Fingerprint
 			for idx, match := range rgx.FindStringSubmatch(line) {
