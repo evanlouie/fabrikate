@@ -2,6 +2,7 @@ package installable
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,13 +10,16 @@ import (
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/microsoft/fabrikate/internal/ssh"
 	"github.com/microsoft/fabrikate/internal/url"
 )
 
 type Git struct {
-	URL    string
-	SHA    string
-	Branch string
+	URL                 string
+	SHA                 string
+	Branch              string
+	PersonalAccessToken string
 }
 
 func (g Git) Install() error {
@@ -49,11 +53,12 @@ func (g Git) GetInstallPath() (string, error) {
 	}
 
 	var version string
-	if g.SHA != "" {
+	switch {
+	case g.SHA != "":
 		version = g.SHA
-	} else if g.Branch != "" {
+	case g.Branch != "":
 		version = g.Branch
-	} else {
+	default:
 		version = "latest"
 	}
 
@@ -127,7 +132,22 @@ func (g Git) clone(dir string) error {
 		cloneOpts.Depth = 1
 	}
 
-	// clone the repo
+	// add the PAT if provided
+	if g.PersonalAccessToken != "" {
+		fmt.Println(g.PersonalAccessToken)
+		cloneOpts.Auth = &http.BasicAuth{
+			Username: "foobar",
+			Password: g.PersonalAccessToken,
+		}
+	}
+
+	// initialize the processes ssh-agent
+	// TODO raise to top level CLi option and emit warning instead of erroring out failure
+	// TODO investigate if necessary to allow for keys not matching "id_*.pub" or have a password
+	if _, err := ssh.InitializeIdentities(); err != nil {
+		return fmt.Errorf(`adding ssh identities to process agent: %w`, err)
+	}
+
 	r, err := git.PlainClone(dir, false, &cloneOpts)
 	if err != nil {
 		return fmt.Errorf(`cloning git repository "%s" into "%s": %w`, g.URL, dir, err)
@@ -163,4 +183,34 @@ func (g Git) clone(dir string) error {
 	}
 
 	return nil
+}
+
+func GetSSHPrivateKeys() ([]string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf(`getting HOME directory: %s`, err)
+	}
+	sshDir := filepath.Join(homeDir, ".ssh")
+	if os.Stat(sshDir); err != nil {
+		return nil, fmt.Errorf(`ssh directory does not exist: %w`, err)
+	}
+
+	var sshPubKeyFiles []string
+	err = filepath.Walk(sshDir, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return fmt.Errorf(`walking .ssh directory %s: %w`, path, err)
+		}
+		if !info.IsDir() {
+			_, name := filepath.Split(info.Name())
+			if strings.HasPrefix(name, "id_") && !strings.HasSuffix(name, ".pub") {
+				sshPubKeyFiles = append(sshPubKeyFiles, path)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf(`walking .ssh directory %s: %w`, sshDir, err)
+	}
+
+	return sshPubKeyFiles, nil
 }

@@ -7,9 +7,10 @@ import (
 
 func TestGit_Install(t *testing.T) {
 	type fields struct {
-		URL    string
-		SHA    string
-		Branch string
+		URL                 string
+		SHA                 string
+		Branch              string
+		PersonalAccessToken string
 	}
 	const elasticGitRepo = "https://github.com/elastic/helm-charts"
 	tests := []struct {
@@ -55,9 +56,10 @@ func TestGit_Install(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			g := Git{
-				URL:    tt.fields.URL,
-				SHA:    tt.fields.SHA,
-				Branch: tt.fields.Branch,
+				URL:                 tt.fields.URL,
+				SHA:                 tt.fields.SHA,
+				Branch:              tt.fields.Branch,
+				PersonalAccessToken: tt.fields.PersonalAccessToken,
 			}
 			if err := g.Install(); (err != nil) != tt.wantErr {
 				t.Errorf("Git.Install() error = %v, wantErr %v", err, tt.wantErr)
