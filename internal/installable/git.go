@@ -134,7 +134,6 @@ func (g Git) clone(dir string) error {
 
 	// add the PAT if provided
 	if g.PersonalAccessToken != "" {
-		fmt.Println(g.PersonalAccessToken)
 		cloneOpts.Auth = &http.BasicAuth{
 			Username: "foobar",
 			Password: g.PersonalAccessToken,
