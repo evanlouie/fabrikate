@@ -130,7 +130,22 @@ func TestHelm_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "no-chart",
+			name: "invalid: /wo chart /wo version",
+			fields: fields{
+				URL: "https://prometheus-community.github.io/helm-charts",
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid: /wo chart /w version",
+			fields: fields{
+				URL:     "https://grafana.github.io/helm-charts",
+				Version: "6.2.1",
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid: /w chart /wo version",
 			fields: fields{
 				URL:   "https://prometheus-community.github.io/helm-charts",
 				Chart: "prometheus",
@@ -138,15 +153,7 @@ func TestHelm_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "prometheus--latest",
-			fields: fields{
-				URL:   "https://prometheus-community.github.io/helm-charts",
-				Chart: "prometheus",
-			},
-			wantErr: false,
-		},
-		{
-			name: "grafana--versioned",
+			name: "valid: /w chart /w version",
 			fields: fields{
 				URL:     "https://grafana.github.io/helm-charts",
 				Chart:   "grafana",

@@ -32,19 +32,19 @@ func (h Helm) Install() error {
 
 	componentPath, err := h.GetInstallPath()
 	if err != nil {
-		return err
+		return fmt.Errorf(`getting helm installation path for %+v: %w`, h, err)
 	}
 	if err := os.RemoveAll(componentPath); err != nil {
-		return err
+		return fmt.Errorf(`removing existing helm installation at %s: %w`, componentPath, err)
 	}
 	if err := os.MkdirAll(filepath.Dir(componentPath), os.ModePerm); err != nil {
-		return err
+		return fmt.Errorf(`creating helm installation directory %s: %w`, componentPath, err)
 	}
 
 	// Move the extracted chart from tmp to the _component dir
 	extractedChartPath := filepath.Join(tmpHelmDir, h.Chart)
 	if err := os.Rename(extractedChartPath, componentPath); err != nil {
-		return err
+		return fmt.Errorf(`moving extracted helm chart from %s to %s: %w`, extractedChartPath, componentPath, err)
 	}
 
 	return nil
@@ -52,7 +52,7 @@ func (h Helm) Install() error {
 
 func (h Helm) GetInstallPath() (string, error) {
 	if err := h.Validate(); err != nil {
-		return "", err
+		return "", fmt.Errorf(`validing helm installable %+v: %sw`, h, err)
 	}
 	urlPath, err := url.ToPath(h.URL)
 	if err != nil {
@@ -70,10 +70,10 @@ func (h Helm) GetInstallPath() (string, error) {
 }
 
 func (h Helm) Validate() error {
-	if h.URL == "" {
+	switch {
+	case h.URL == "":
 		return fmt.Errorf(`URL must be non-zero length: %+v`, h)
-	}
-	if h.Chart == "" {
+	case h.Chart == "":
 		return fmt.Errorf(`Chart must be non-zero length: %+v`, h)
 	}
 

@@ -122,7 +122,8 @@ func (l Local) GetInstallPath() (string, error) {
 }
 
 func (l Local) Validate() error {
-	if l.Root == "" {
+	switch {
+	case l.Root == "":
 		return fmt.Errorf(`Root must be non-zero length: %+v`, l)
 	}
 
