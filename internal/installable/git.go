@@ -2,7 +2,6 @@ package installable
 
 import (
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -182,34 +181,4 @@ func (g Git) clone(dir string) error {
 	}
 
 	return nil
-}
-
-func GetSSHPrivateKeys() ([]string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf(`getting HOME directory: %s`, err)
-	}
-	sshDir := filepath.Join(homeDir, ".ssh")
-	if os.Stat(sshDir); err != nil {
-		return nil, fmt.Errorf(`ssh directory does not exist: %w`, err)
-	}
-
-	var sshPubKeyFiles []string
-	err = filepath.Walk(sshDir, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return fmt.Errorf(`walking .ssh directory %s: %w`, path, err)
-		}
-		if !info.IsDir() {
-			_, name := filepath.Split(info.Name())
-			if strings.HasPrefix(name, "id_") && !strings.HasSuffix(name, ".pub") {
-				sshPubKeyFiles = append(sshPubKeyFiles, path)
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf(`walking .ssh directory %s: %w`, sshDir, err)
-	}
-
-	return sshPubKeyFiles, nil
 }
