@@ -19,8 +19,11 @@ import (
 	"github.com/microsoft/fabrikate/internal/helm"
 )
 
-func decompressedGZippedBin(body []byte) ([]byte, error) {
-	byteReader := bytes.NewReader(body)
+// extractHelmFromGZIP returns the bytes for the first file encountered in the
+// provided tar/gzip compressed file which has the name "helm".
+// Use to extract the Helm binary for non-windows hosts.
+func extractHelmFromGZIP(compressed []byte) ([]byte, error) {
+	byteReader := bytes.NewReader(compressed)
 	gzr, err := gzip.NewReader(byteReader)
 	if err != nil {
 		return nil, fmt.Errorf(`creating gzip reader: %w`, err)
@@ -50,7 +53,10 @@ func decompressedGZippedBin(body []byte) ([]byte, error) {
 	}
 }
 
-func decompressZippedBin(body []byte) ([]byte, error) {
+// extractHelmFromZIP returns the bytes for the first file encountered in the
+// provided zip compressed file which has the name "helm.exe".
+// Use to extract the Helm binary for windows hosts.
+func extractHelmFromZIP(body []byte) ([]byte, error) {
 	r := bytes.NewReader(body)
 	rdr, err := zip.NewReader(r, int64(len(body)))
 	if err != nil {
@@ -120,11 +126,12 @@ func downloadLatest() ([]byte, error) {
 	case "darwin":
 		fallthrough
 	case "linux":
-		helmBinBytes, err = decompressedGZippedBin(bodyBytes)
+		helmBinBytes, err = extractHelmFromGZIP(bodyBytes)
 	case "windows":
-		helmBinBytes, err = decompressZippedBin(bodyBytes)
+		helmBinBytes, err = extractHelmFromZIP(bodyBytes)
 	default:
-		return nil, fmt.Errorf(`unsupported os for decompressing downloaded helm binary`)
+		supportedOS := []string{"darwin", "linux", "windows"}
+		return nil, fmt.Errorf(`unsupported os "%s" for decompressing downloaded helm binary: only %s hosts supported`, runtime.GOOS, supportedOS)
 	}
 
 	// ensure final data is valid-ish

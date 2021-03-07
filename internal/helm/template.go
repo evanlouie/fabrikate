@@ -89,28 +89,31 @@ func TemplateWithCRDs(opts TemplateOptions) ([]map[string]interface{}, error) {
 	templateOpts := opts           // inherit all the initial settings
 	templateOpts.Repo = ""         // zero out so it wont attempt to lookup the repo
 	templateOpts.Chart = chartPath // manually set the path of the chart to the downloaded chart
-	template, err := Template(templateOpts)
+	templateMaps, err := Template(templateOpts)
 	if err != nil {
 		return nil, fmt.Errorf(`templating helm chart at %s: %w`, templateOpts.Chart, err)
 	}
 
-	// join all the yaml together with "---"
-	allYAMLEntries := append(crds, template)
-	unifiedYAMLString := strings.TrimSpace(strings.Join(allYAMLEntries, "\n---\n"))
-
-	// convert to maps and remove all nils
-	var maps, noNils []map[string]interface{}
-	maps, err = fabYaml.DecodeMaps([]byte(unifiedYAMLString))
+	// decode CRDs to maps
+	crdMaps, err := fabYaml.DecodeMaps([]byte(strings.Join(crds, "\n---\n")))
 	if err != nil {
-		return nil, fmt.Errorf(`parsing output of "helm template": %w`, err)
+		return nil, fmt.Errorf(`decoding CRD yaml: %w`, err)
 	}
-	for _, m := range maps {
-		if m != nil {
-			noNils = append(noNils, m)
+
+	// merge to unified map list
+	var finalYamlMaps []map[string]interface{}
+	for _, crdMap := range crdMaps {
+		if crdMap != nil {
+			finalYamlMaps = append(finalYamlMaps, crdMap)
+		}
+	}
+	for _, templateMap := range templateMaps {
+		if templateMap != nil {
+			finalYamlMaps = append(finalYamlMaps, templateMap)
 		}
 	}
 
-	return noNils, nil
+	return finalYamlMaps, nil
 }
 
 // Template runs `helm template` on the chart specified by opts.
@@ -120,13 +123,13 @@ func TemplateWithCRDs(opts TemplateOptions) ([]map[string]interface{}, error) {
 //
 // NOTE in Helm 3, CRDs in the "crds" directory of the chart are not outputted
 // from `helm template` but are installed via `helm install`
-func Template(opts TemplateOptions) (string, error) {
+func Template(opts TemplateOptions) ([]map[string]interface{}, error) {
 	templateArgs := []string{"template"}
 	if opts.Repo != "" {
 		// if an existing helm repo exists on the helm client, use that for templating
 		existingRepo, err := FindRepoNameByURL(opts.Repo)
 		if err != nil {
-			return "", fmt.Errorf(`searching existing helm repositories for %s: %w`, opts.Repo, err)
+			return nil, fmt.Errorf(`searching existing helm repositories for %s: %w`, opts.Repo, err)
 		}
 		if existingRepo != "" {
 			opts.Chart = existingRepo + "/" + opts.Chart
@@ -157,13 +160,17 @@ func Template(opts TemplateOptions) (string, error) {
 	templateCmd.Stderr = &stderr
 
 	if err := templateCmd.Run(); err != nil {
-		return "", fmt.Errorf(`running "%s": %s: %w`, templateCmd, stderr.String(), err)
+		return nil, fmt.Errorf(`running "%s": %s: %w`, templateCmd, stderr.String(), err)
 	}
 	if stderr.Len() != 0 {
-		return "", fmt.Errorf(`"%s" exited with output to stderr: %s`, templateCmd, stderr.String())
+		return nil, fmt.Errorf(`"%s" exited with output to stderr: %s`, templateCmd, stderr.String())
+	}
+	maps, err := fabYaml.DecodeMaps(stdout.Bytes())
+	if err != nil {
+		return nil, fmt.Errorf(`parsing output of "helm template": %s: %w`, stderr.String(), err)
 	}
 
-	return stdout.String(), nil
+	return maps, nil
 }
 
 func injectNamespace(manifest map[string]interface{}, namespace string) (map[string]interface{}, error) {
