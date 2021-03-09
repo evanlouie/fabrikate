@@ -141,12 +141,15 @@ func Template(opts TemplateOptions) ([]map[string]interface{}, error) {
 			templateArgs = append(templateArgs, "--repo", opts.Repo)
 		}
 	}
+	// set namespace if provided
 	if opts.Namespace != "" {
 		templateArgs = append(templateArgs, "--create-namespace", "--namespace", opts.Namespace)
 	}
+	// set all --set options
 	for _, set := range opts.Set {
 		templateArgs = append(templateArgs, "--set", set)
 	}
+	// set all --values options
 	for _, yamlPath := range opts.Values {
 		templateArgs = append(templateArgs, "--values", yamlPath)
 	}
