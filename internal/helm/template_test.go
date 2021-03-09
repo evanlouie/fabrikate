@@ -188,6 +188,17 @@ func TestTemplateWithCRDs(t *testing.T) {
 			true,
 		},
 		{
+			"dir not exist",
+			args{
+				opts: TemplateOptions{
+					Chart:   filepath.Join("random", "dir", "does", "not", "exist"),
+					Release: "foobar",
+				},
+			},
+			nil,
+			true,
+		},
+		{
 			"test-chart",
 			args{TemplateOptions{
 				Chart:   filepath.Join("testdata", "template", "test-chart"),
@@ -229,6 +240,37 @@ func TestTemplateWithCRDs(t *testing.T) {
 						"scope": "Namespaced",
 					},
 				},
+				{
+					"apiVersion": "v1",
+					"kind":       "Service",
+					"metadata": map[string]interface{}{
+						"name": "random-chart-test-chart",
+					},
+					"spec": map[string]interface{}{
+						"testValue": "foobar",
+					},
+				},
+				{
+					"apiVersion": "apps/v1",
+					"kind":       "Deployment",
+					"metadata": map[string]interface{}{
+						"name": "random-chart-test-chart",
+					},
+					"spec": map[string]interface{}{
+						"testValue": "foobar",
+					},
+				},
+			},
+			false,
+		},
+		{
+			"test-chart-no-crds",
+			args{TemplateOptions{
+				Chart:   filepath.Join("testdata", "template", "test-chart-no-crds"),
+				Release: "random-chart",
+				Set:     []string{"testValue=foobar"},
+			}},
+			[]map[string]interface{}{
 				{
 					"apiVersion": "v1",
 					"kind":       "Service",

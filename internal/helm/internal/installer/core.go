@@ -81,10 +81,10 @@ func extractHelmFromZIP(body []byte) ([]byte, error) {
 	return nil, fmt.Errorf(`no file named "helm.exe" found in zip file`)
 }
 
-// downloadLatest downloads the helm latest binary from the latest release from
+// DownloadLatest downloads the helm latest binary from the latest release from
 // github for the OS corresponding to runtime.GOOS and return it as a byte
 // slice.
-func downloadLatest() ([]byte, error) {
+func DownloadLatest() ([]byte, error) {
 	// get the latest github release
 	client := github.NewClient(nil)
 	release, _, err := client.Repositories.GetLatestRelease(context.Background(), "helm", "Helm")
@@ -147,14 +147,15 @@ func downloadLatest() ([]byte, error) {
 
 // Install the latest Helm release to a temporary file on the host. Returns a
 // the path to the installed binary.
-// It is the users callers responsibility to ensure that the file is cleaned up.
+// It is the callers responsibility to ensure that the file is cleaned up after
+// usage.
 func Install() (string, error) {
 	// create a temp file and write out helm to it
 	f, tmpErr := os.CreateTemp("", "fabrikate")
 	if tmpErr != nil {
 		return "", fmt.Errorf(`creating temporary file to hold downloaded helm binary: %w`, tmpErr)
 	}
-	downloadedBytes, downloadErr := downloadLatest()
+	downloadedBytes, downloadErr := DownloadLatest()
 	if downloadErr != nil {
 		return "", fmt.Errorf(`downloaded latest helm release: %w`, downloadErr)
 	}
@@ -164,7 +165,7 @@ func Install() (string, error) {
 		return "", fmt.Errorf(`writing downloaded helm binary to temporary file %s: %w`, f.Name(), err)
 	}
 
-	// make the type file is executable
+	// make the file executable
 	if err := os.Chmod(f.Name(), os.ModePerm); err != nil {
 		return "", fmt.Errorf(`setting permission %s to downloaded Helm binary %s`, os.ModePerm, f.Name())
 	}
@@ -172,8 +173,8 @@ func Install() (string, error) {
 	return f.Name(), nil
 }
 
-// GetHelm gets the path to a Helm 3 binary first searching for it on the user
-// $PATH or installing it to a temporary file if it is not found.
+// GetHelm gets the path to a Helm 3 binary by first searching for it on the
+// user $PATH or installing it to a temporary file if it is not found.
 func GetHelm() (string, error) {
 	helmPath, err := exec.LookPath("helm")
 	switch {

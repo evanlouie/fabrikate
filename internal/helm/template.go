@@ -64,7 +64,7 @@ func TemplateWithCRDs(opts TemplateOptions) ([]map[string]interface{}, error) {
 		if info.IsDir() {
 			err := filepath.Walk(crdPath, func(path string, info fs.FileInfo, err error) error {
 				if err != nil {
-					return fmt.Errorf(`walking path %s: %w`, path, err)
+					return fmt.Errorf(`walking CRD path %s: %w`, path, err)
 				}
 				extension := strings.ToLower(filepath.Ext(info.Name()))
 				// track all yaml files
@@ -117,9 +117,12 @@ func TemplateWithCRDs(opts TemplateOptions) ([]map[string]interface{}, error) {
 }
 
 // Template runs `helm template` on the chart specified by opts.
-// Returns the string output of stdout for `helm template`.
-// Will have a non-nil error if an error occurs when running the command or the
-// command outputs ANYTHING to stdout.
+// Returns the map[string]interface{} decoded output of stdout for the
+// `helm template` call.
+// Will return an error occurs when:
+// - running `helm template` returns an error
+// - command outputs ANYTHING to stderr
+// - stdout of `helm template` command cannot be decoded to a map[string]interface{}
 //
 // NOTE in Helm 3, CRDs in the "crds" directory of the chart are not outputted
 // from `helm template` but are installed via `helm install`

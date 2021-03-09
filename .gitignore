@@ -1,5 +1,6 @@
 _components
 _generated
+_releases
 
 # Binaries for programs and plugins
 *.exe

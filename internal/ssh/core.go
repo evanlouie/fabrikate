@@ -60,6 +60,7 @@ func InitializeIdentities() (identities []PlainIdentity, err error) {
 // Fingerprints returns the output of `ssh-add -l`
 func Fingerprints() (prints []Fingerprint, err error) {
 	cmd := exec.Command("ssh-add", "-l")
+	// note: ssh-add outputs everything to stderr
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf(`running "%s": %s: %w`, cmd, out, err)

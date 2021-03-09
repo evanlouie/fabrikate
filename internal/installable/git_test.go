@@ -24,25 +24,57 @@ func TestGit_Install(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "kibana--versioned-sha",
+			name: "/w broken repo",
 			fields: fields{
-				URL: "https://github.com/elastic/helm-charts",
+				URL: "https://asdfzxcvqwer.com/i/do/not/exist",
+			},
+			wantErr: true,
+		},
+		{
+			name: "/w repo /w broken sha",
+			fields: fields{
+				URL: elasticGitRepo,
+				SHA: "i-am-invalid-or-non-existent-sha",
+			},
+			wantErr: true,
+		},
+		{
+			name: "/w repo /w broken branch",
+			fields: fields{
+				URL:    elasticGitRepo,
+				Branch: "i-do-not-exist-asdf-asdf-1233-asdf",
+			},
+			wantErr: true,
+		},
+		{
+			name: "/w repo /w sha /w branch",
+			fields: fields{
+				URL:    elasticGitRepo,
+				Branch: "7.11",
+				SHA:    "93aab3d6cd8057e15f3b0d60f837d90ca7714199",
+			},
+			wantErr: true,
+		},
+		{
+			name: "/w repo /w sha",
+			fields: fields{
+				URL: elasticGitRepo,
 				SHA: "3fb0c8267e146ef9ae8d8de7f836bb775c03e960",
 			},
 			wantErr: false,
 		},
 		{
-			name: "kibana--versioned-branch",
+			name: "/w repo /w branch",
 			fields: fields{
-				URL:    "https://github.com/elastic/helm-charts",
+				URL:    elasticGitRepo,
 				Branch: "7.11",
 			},
 			wantErr: false,
 		},
 		{
-			name: "kibana-latest",
+			name: "/w repo",
 			fields: fields{
-				URL: "https://github.com/elastic/helm-charts",
+				URL: elasticGitRepo,
 			},
 			wantErr: false,
 		},

@@ -7,13 +7,14 @@ import (
 	"strings"
 
 	"github.com/microsoft/fabrikate/internal/helm"
-	"github.com/timfpark/yaml"
+	"github.com/microsoft/fabrikate/internal/yaml"
 )
 
 type Helm struct {
 	Pathable
 	ChartPath string // path to directory containing Chart.yaml. Not to actual chart.yaml file
 	Values    map[string]interface{}
+	Namespace string // `helm template --namespace <Namespace>`, YAML will be create if template does not output a namespace with a matching name
 }
 
 func (h Helm) Validate() error {
@@ -27,7 +28,7 @@ func (h Helm) Generate() (int, error) {
 		return 0, fmt.Errorf(`creating temporary helm values files: %w`, err)
 	}
 	defer os.Remove(valuesFile.Name())
-	valueBytes, err := yaml.Marshal(h.Values)
+	valueBytes, err := yaml.Encode(h.Values)
 	if err != nil {
 		return 0, fmt.Errorf(`marshalling helm values to temporary file: %w`, err)
 	}
@@ -51,7 +52,7 @@ func (h Helm) Generate() (int, error) {
 	}()
 
 	// run `helm template`
-	template, err := helm.Template(helm.TemplateOptions{
+	template, err := helm.TemplateWithCRDs(helm.TemplateOptions{
 		Chart:   h.ChartPath,
 		Values:  []string{valuesFile.Name()},
 		Release: release,
@@ -66,7 +67,10 @@ func (h Helm) Generate() (int, error) {
 	}
 
 	// write out template
-	asBytes := []byte(template)
+	asBytes, err := yaml.Encode(template)
+	if err != nil {
+		return 0, fmt.Errorf(`encoding final helm template to yaml: %w`, err)
+	}
 	if err := os.WriteFile(generatePath, asBytes, os.ModePerm); err != nil {
 		return 0, fmt.Errorf(`writing out helm component at "%s": %w`, generatePath, err)
 	}

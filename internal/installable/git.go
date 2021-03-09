@@ -14,6 +14,7 @@ import (
 	"github.com/microsoft/fabrikate/internal/url"
 )
 
+// Git is the git component implementation of the Installable interface.
 type Git struct {
 	URL                 string
 	SHA                 string
@@ -82,7 +83,7 @@ func (g Git) Validate() error {
 
 var cloneCoordinator = struct {
 	sync.Mutex                          // lock to ensure only one write has access to locks at a time
-	nodes      map[string]*sync.RWMutex // key == filepath; value == lock denoting if the filepath has been clone or is cloning
+	nodes      map[string]*sync.RWMutex // key == filepath; value == lock denoting if the filepath has been cloned (exists, not locked), is cloning (exists, locked), has not begun cloning (does not exist)
 }{
 	nodes: map[string]*sync.RWMutex{},
 }
@@ -134,7 +135,7 @@ func (g Git) clone(dir string) error {
 	// add the PAT if provided
 	if g.PersonalAccessToken != "" {
 		cloneOpts.Auth = &http.BasicAuth{
-			Username: "foobar",
+			Username: "foobar", // can be anything besides empty string
 			Password: g.PersonalAccessToken,
 		}
 	}
