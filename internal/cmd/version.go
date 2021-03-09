@@ -15,6 +15,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/microsoft/fabrikate/internal/logger"
 	"github.com/spf13/cobra"
 )
@@ -28,9 +30,13 @@ var versionCmd = &cobra.Command{
 	},
 }
 
+// Version of the current release of fabrikate
+// TODO see how we can get this programatically from the git repo
+var Version string = "v1.0.0-alpha1"
+
 // PrintVersion prints the current version of Fabrikate being used.
 func PrintVersion() {
-	logger.Info("fab version 1.0.0-alpha1")
+	logger.Info(fmt.Sprintf("fab version %s", Version))
 }
 
 func init() {

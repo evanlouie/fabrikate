@@ -1,141 +1,146 @@
 package main
 
 import (
-	"archive/tar"
 	"archive/zip"
-	"bytes"
-	"compress/gzip"
-	"context"
+	"flag"
 	"fmt"
 	"io"
 	"log"
-	"net/http"
+	"os"
+	"os/exec"
 	"path/filepath"
-	"runtime"
-	"strings"
 
-	"github.com/google/go-github/v33/github"
+	"github.com/microsoft/fabrikate/internal/cmd"
 )
 
-func untarHelmBin(body []byte) ([]byte, error) {
-	byteReader := bytes.NewReader(body)
-	gzr, err := gzip.NewReader(byteReader)
-	if err != nil {
-		return nil, fmt.Errorf(`creating gzip reader: %w`, err)
-	}
-	defer gzr.Close()
-
-	tr := tar.NewReader(gzr)
-	for {
-		header, err := tr.Next()
-		switch {
-		case err == io.EOF:
-			return nil, fmt.Errorf(`no file with name "helm" found in tar.gz file`)
-		case err != nil:
-			return nil, fmt.Errorf(`parsing file in tar.gz file: %w`, err)
-		case header == nil:
-			continue
-		default:
-			filename := filepath.Base(header.Name)
-			if filename == "helm" && header.Typeflag == tar.TypeReg {
-				helmBytes, err := io.ReadAll(tr)
-				if err != nil {
-					return nil, fmt.Errorf(`reading bytes from %s in tar.gz file`, header.Name)
-				}
-				return helmBytes, nil
-			}
-		}
-	}
+type build struct {
+	GOOS   string
+	GOARCH string
 }
 
-func unzipHelmBin(body []byte) ([]byte, error) {
-	r := bytes.NewReader(body)
-	rdr, err := zip.NewReader(r, int64(len(body)))
-	if err != nil {
-		return nil, fmt.Errorf(`creating zip reader: %s`, err)
+func (b build) binName() string {
+	outfile := "fab"
+	if b.GOOS == "windows" {
+		outfile = outfile + ".exe"
 	}
 
-	for _, zipFile := range rdr.File {
-		filename := filepath.Base(zipFile.Name)
-		if filename == "helm.exe" {
-			f, err := zipFile.Open()
-			if err != nil {
-				return nil, err
-			}
-			helmBytes, err := io.ReadAll(f)
-			if err != nil {
-				return nil, err
-			}
-			return helmBytes, err
-		}
-	}
-
-	return nil, fmt.Errorf(`no file named "helm.exe" found in zip file`)
+	return outfile
 }
 
-func downloadLatestHelm() ([]byte, error) {
-	// get the latest github release
-	client := github.NewClient(nil)
-	release, _, err := client.Repositories.GetLatestRelease(context.Background(), "helm", "Helm")
-	if err != nil {
-		return nil, fmt.Errorf(`getting latest release from github for helm/helm: %w`, err)
-	}
-	if len(strings.TrimSpace(*release.Body)) == 0 {
-		return nil, fmt.Errorf(`getting latest release from github for helm/helm: empty release body was found for release %s`, *release.Name)
+// build fabrikate for the target build and return the binary as []byte.
+func (b build) build() ([]byte, error) {
+	// ensure that the path to main.go is correct
+	fabCore := filepath.Join("cmd", "fab", "main.go")
+	if _, err := os.Stat(fabCore); err != nil {
+		return nil, fmt.Errorf(`unable to find Fabrikate core main package %s: %w`, fabCore, err)
 	}
 
-	// get the correct compressed extension
-	var compressExt string
-	switch runtime.GOOS {
-	case "darwin":
-		fallthrough
-	case "linux":
-		compressExt = "tar.gz"
-	case "windows":
-		compressExt = "zip"
-	default:
-		return nil, fmt.Errorf(`downloading helm binary: unsupported host %s`, runtime.GOOS)
+	// create a temp file to build to.
+	tempFile, err := os.CreateTemp("", "fabrikate")
+	if err != nil {
+		return nil, fmt.Errorf(`creating temporary build file: %w`, err)
+	}
+	defer tempFile.Close()
+
+	// Write to the temp file
+	// NOTE we only use the tempFile to generate a random safe name. After this
+	// command runs, the tempFile we created no longer points to the correct
+	// file header as the `go build` command created a new file in its place.
+	cmd := exec.Command("go", "build", "-o", tempFile.Name(), fabCore)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf(`GOOS=%s`, b.GOOS),
+		fmt.Sprintf(`GOARCH=%s`, b.GOARCH),
+	)
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf(`running build commands "%s": %w`, cmd, err)
 	}
 
-	// download the os specific release
-	downloadURL := fmt.Sprintf(`https://get.helm.sh/helm-%s-%s-amd64.%s`, *release.TagName, runtime.GOOS, compressExt)
-	resp, err := http.Get(downloadURL)
+	// Have to open the newly created build file as the tempfile was overwritten
+	// by the build command.
+	fab, err := os.Open(tempFile.Name())
 	if err != nil {
-		return nil, fmt.Errorf(`downloading helm from %s: %w`, downloadURL, err)
+		return nil, fmt.Errorf(`opening fabrikate build %s: %w`, tempFile.Name(), err)
 	}
-	defer resp.Body.Close()
-	bodyBytes, err := io.ReadAll(resp.Body)
+	if err := fab.Chmod(os.ModePerm); err != nil {
+		return nil, fmt.Errorf(`making fabrikate binary executable: %w`, err)
+	}
+	defer fab.Close()
+	defer os.Remove(fab.Name())
+
+	fabBytes, err := io.ReadAll(fab)
 	if err != nil {
-		return nil, fmt.Errorf(`reading body of helm download response from %s: %w`, downloadURL, err)
+		return nil, fmt.Errorf(`reading build bytes from temp file %s: %w`, tempFile.Name(), err)
 	}
 
-	// decompress the file and get the helm bin bytes
-	var helmBinBytes []byte
-	switch runtime.GOOS {
-	case "darwin":
-		fallthrough
-	case "linux":
-		helmBinBytes, err = untarHelmBin(bodyBytes)
-	case "windows":
-		helmBinBytes, err = unzipHelmBin(bodyBytes)
-	default:
-		return nil, fmt.Errorf(`unsupported os for decompressing downloaded helm binary`)
-	}
+	return fabBytes, nil
+}
+
+// buildandZip fabrikate to the target zip file.
+func (b build) buildAndZip(zipName string) error {
+	outZip, err := os.Create(zipName)
 	if err != nil {
-		return nil, fmt.Errorf(`decompressing downloaded helm binary: %w`, err)
+		return fmt.Errorf(`creating zip file %s: %w`, outZip.Name(), err)
 	}
-	if helmBinBytes == nil {
-		return nil, fmt.Errorf(`empty byte slice found for "helm" file in compressed download file`)
+	defer outZip.Close()
+
+	zWriter := zip.NewWriter(outZip)
+	defer zWriter.Close()
+	_, filename := filepath.Split(b.binName())
+	// do not use writer.Create to create the file -- manually create a FileHeader
+	// so we can SetMode to keep the file executable.
+	fabHeader := &zip.FileHeader{
+		Name:   filename,
+		Method: zip.Deflate,
+	}
+	fabHeader.SetMode(os.ModePerm)
+	fabFile, err := zWriter.CreateHeader(fabHeader)
+	if err != nil {
+		return fmt.Errorf(`creating fab binary zip header: %w`, err)
+	}
+	fabBytes, err := b.build()
+	if err != nil {
+		return fmt.Errorf(`building fabrikate: %w`, err)
+	}
+	if _, err := fabFile.Write(fabBytes); err != nil {
+		return fmt.Errorf(`writing fabrikate binary to zip file: %w`, err)
 	}
 
-	return helmBinBytes, nil
+	return nil
 }
 
 func main() {
-	b, err := downloadLatestHelm()
-	if err != nil {
-		log.Fatal(err)
+	version := flag.String("version", cmd.Version, "specify the version tag for this release")
+	flag.Parse()
+
+	var builds = []build{
+		{"darwin", "amd64"},
+		{"linux", "amd64"},
+		{"windows", "amd64"},
 	}
 
-	fmt.Printf("%d\n", len(b))
+	// ensure that the path to main.go is correct
+	fabCore := filepath.Join("cmd", "fab", "main.go")
+	if _, err := os.Stat(fabCore); err != nil {
+		log.Fatal(fmt.Errorf(`unable to find fabrikate core main package %s: %w`, fabCore, err))
+	}
+
+	const releasesDir = "_releases"
+	for _, build := range builds {
+		log.Printf("Building %s-%s...\n", build.GOOS, build.GOARCH)
+		// buildDir, _ := filepath.Split(build.outPath())
+		if err := os.MkdirAll(releasesDir, os.ModePerm); err != nil {
+			log.Fatal(fmt.Errorf(`creating release directory: %w`, err))
+		}
+		zipName := fmt.Sprintf(`fab-%s-%s-%s.zip`, *version, build.GOOS, build.GOARCH)
+		zipPath := filepath.Join(releasesDir, zipName)
+		if err := build.buildAndZip(zipPath); err != nil {
+			log.Fatal(fmt.Errorf(`building and zipping fabrikate: %w`, err))
+		}
+
+		log.Printf("%s complete\n", zipPath)
+	}
+
+	log.Println("Done!")
 }
