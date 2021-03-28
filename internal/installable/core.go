@@ -40,7 +40,7 @@ func cleanup(i Installable) error {
 		return fmt.Errorf(`getting install path for installable %v: %w`, i, err)
 	}
 	if err := os.RemoveAll(installPath); err != nil {
-		return fmt.Errorf(`cleaning installation for installable %v at %s: %e`, i, installPath, err)
+		return fmt.Errorf(`cleaning installation for installable %+v at %s: %w`, i, installPath, err)
 	}
 
 	return nil

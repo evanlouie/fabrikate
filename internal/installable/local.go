@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 )
 
+const localRoot = "_local"
+
 type Local struct {
 	Root string
 }
@@ -92,45 +94,48 @@ func (l Local) Install() error {
 	return nil
 }
 
-// GetInstallPath returns the absolute path of the local Installables Root and
-// prepends it with the component installation directory.
+// GetInstallPath returns the installation path for provided local Installlable
+// by joining `<installDirName>/_local/<relative-path-to-root-from-cwd>`.
+// TODO decide if to accept absolute paths or only relative paths without access to parent directories
+// FIXME this might be broken with certain relative paths
 func (l Local) GetInstallPath() (string, error) {
 	if err := l.Validate(); err != nil {
 		return "", err
 	}
 
-	var resolvedAbsolute string
-	if filepath.IsAbs(l.Root) {
-		resolvedAbsolute = l.Root
-	} else {
-		abs, err := filepath.Abs(l.Root)
-		if err != nil {
-			return "", fmt.Errorf(`computing absolute path for %s: %w`, l.Root, err)
-		}
-		resolvedAbsolute = abs
-	}
-
-	info, err := os.Stat(resolvedAbsolute)
+	// calculate the relative path from abs current dir to abs l.Root
+	cwd, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf(`stating %s for local component %+v: %w`, resolvedAbsolute, l, err)
+		return "", fmt.Errorf(`getting current working directory: %w`, err)
 	}
-	if !info.IsDir() {
-		resolvedAbsolute = filepath.Dir(resolvedAbsolute)
+	absRoot, err := filepath.Abs(l.Root)
+	if err != nil {
+		return "", fmt.Errorf(`getting absolute path to %s for local installable %+v: %w`, l.Root, l, err)
+	}
+	rel, err := filepath.Rel(cwd, absRoot)
+	if err != nil {
+		return "", fmt.Errorf(`getting relative path to %s: %w`, l.Root, err)
+	}
+	// if rel is a file, install path is the parent
+	if info, err := os.Stat(rel); err != nil {
+		return "", fmt.Errorf(`statting %s for installable %+v: %w`, rel, l, err)
+	} else if !info.IsDir() {
+		rel = filepath.Dir(rel)
 	}
 
-	return filepath.Join(installDirName, resolvedAbsolute), nil
+	return filepath.Join(installDirName, localRoot, rel), nil
 }
 
 func (l Local) Validate() error {
 	switch {
 	case l.Root == "":
-		return fmt.Errorf(`Root must be non-zero length: %+v`, l)
+		return fmt.Errorf(`local installable root must be non-zero length: %+v`, l)
 	}
 
 	// ensure the root exists
 	if _, err := os.Stat(l.Root); err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf(`Root does not exist in filesystem for local installable %+v: %w`, l, err)
+			return fmt.Errorf(`local installable root does not exist in filesystem for local installable %+v: %w`, l, err)
 		}
 		return fmt.Errorf(`unable to stat Root for %+v: %w`, l, err)
 	}

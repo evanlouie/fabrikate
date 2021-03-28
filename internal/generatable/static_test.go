@@ -86,9 +86,6 @@ func TestStatic_Generate(t *testing.T) {
 				},
 				ManifestPath: tt.fields.ManifestPath,
 			}
-			t.Cleanup(func() {
-				cleanup(s)
-			})
 			got, err := s.Generate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Static.Generate() error = %v, wantErr %v", err, tt.wantErr)

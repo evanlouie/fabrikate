@@ -10,7 +10,7 @@ import (
 // Encode a slice of interface{} into a multi-document yaml byte string.
 // Any errors encountered while encoding any of the yaml docs will cause the
 // function to fail fast and return the a nil []byte and the error encountered.
-// E.g if 10 docs are provided an 3 documents cause errors, a nil slice and an
+// E.g if 10 docs are provided and 3 documents cause errors, a nil slice and an
 // errors is returned on the first error encountered.
 func Encode(docs ...interface{}) ([]byte, error) {
 	var buf bytes.Buffer

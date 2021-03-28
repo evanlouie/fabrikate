@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -135,7 +136,7 @@ func Template(opts TemplateOptions) ([]map[string]interface{}, error) {
 			return nil, fmt.Errorf(`searching existing helm repositories for %s: %w`, opts.Repo, err)
 		}
 		if existingRepo != "" {
-			opts.Chart = existingRepo + "/" + opts.Chart
+			opts.Chart = path.Join(existingRepo, opts.Chart)
 		} else {
 			// if an existing repo is not found, use the --repo option to pull from network
 			templateArgs = append(templateArgs, "--repo", opts.Repo)

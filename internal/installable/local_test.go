@@ -76,7 +76,7 @@ func TestLocal_GetInstallPath(t *testing.T) {
 			fields: fields{
 				Root: filepath.Join("testdata", "local", "nested", "3-random-file.txt"),
 			},
-			want:    filepath.Join(installDirName, cwd, "testdata", "local", "nested"),
+			want:    filepath.Join(installDirName, localRoot, "testdata", "local", "nested"),
 			wantErr: false,
 		},
 		{
@@ -84,7 +84,7 @@ func TestLocal_GetInstallPath(t *testing.T) {
 			fields: fields{
 				Root: filepath.Join("testdata", "local"),
 			},
-			want:    filepath.Join(installDirName, cwd, "testdata", "local"),
+			want:    filepath.Join(installDirName, localRoot, "testdata", "local"),
 			wantErr: false,
 		},
 		{
@@ -92,7 +92,7 @@ func TestLocal_GetInstallPath(t *testing.T) {
 			fields: fields{
 				Root: filepath.Join(cwd, "testdata", "local"),
 			},
-			want:    filepath.Join(installDirName, cwd, "testdata", "local"),
+			want:    filepath.Join(installDirName, localRoot, "testdata", "local"),
 			wantErr: false,
 		},
 		{
@@ -100,7 +100,7 @@ func TestLocal_GetInstallPath(t *testing.T) {
 			fields: fields{
 				Root: filepath.Join("testdata", "local", "does-not-exist", ".."),
 			},
-			want:    filepath.Join(installDirName, cwd, "testdata", "local"),
+			want:    filepath.Join(installDirName, localRoot, "testdata", "local"),
 			wantErr: false,
 		},
 		{
@@ -108,7 +108,7 @@ func TestLocal_GetInstallPath(t *testing.T) {
 			fields: fields{
 				Root: filepath.Join(cwd, "testdata", "local", "does-not-exist", ".."),
 			},
-			want:    filepath.Join(installDirName, cwd, "testdata", "local"),
+			want:    filepath.Join(installDirName, localRoot, "testdata", "local"),
 			wantErr: false,
 		},
 	}
