@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const localRoot = "_local"
@@ -127,8 +128,7 @@ func (l Local) GetInstallPath() (string, error) {
 }
 
 func (l Local) Validate() error {
-	switch {
-	case l.Root == "":
+	if l.Root == "" {
 		return fmt.Errorf(`local installable root must be non-zero length: %+v`, l)
 	}
 
@@ -138,6 +138,19 @@ func (l Local) Validate() error {
 			return fmt.Errorf(`local installable root does not exist in filesystem for local installable %+v: %w`, l, err)
 		}
 		return fmt.Errorf(`unable to stat Root for %+v: %w`, l, err)
+	}
+
+	// root must be in the component file tree -- cwd must be the prefix of the abs l.root
+	absRoot, err := filepath.Abs(l.Root)
+	if err != nil {
+		return fmt.Errorf(`getting absolute path of %s: %w`, l.Root, err)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf(`getting current working directory: %w`, err)
+	}
+	if !strings.HasPrefix(absRoot, cwd) {
+		return fmt.Errorf(`local installable root must be within or a child of current working directory %s: resolved %s`, cwd, absRoot)
 	}
 
 	return nil

@@ -111,6 +111,13 @@ func TestLocal_GetInstallPath(t *testing.T) {
 			want:    filepath.Join(installDirName, localRoot, "testdata", "local"),
 			wantErr: false,
 		},
+		{
+			name: "outside of project",
+			fields: fields{
+				Root: filepath.Join("..", "..", "docs"),
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
