@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -44,9 +45,6 @@ func TestLocal_Install(t *testing.T) {
 			l := Local{
 				Root: tt.fields.Root,
 			}
-			t.Cleanup(func() {
-				cleanup(l)
-			})
 			if err := l.Install(); (err != nil) != tt.wantErr {
 				t.Errorf("Local.Install() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -76,7 +74,13 @@ func TestLocal_GetInstallPath(t *testing.T) {
 			fields: fields{
 				Root: filepath.Join("testdata", "local", "nested", "3-random-file.txt"),
 			},
-			want:    filepath.Join(installDirName, localRoot, "testdata", "local", "nested"),
+			want: filepath.Join(installDirName,
+				strings.ReplaceAll(
+					filepath.Join(cwd, "testdata", "local", "nested"),
+					string(filepath.Separator),
+					"$",
+				),
+			),
 			wantErr: false,
 		},
 		{
@@ -84,7 +88,13 @@ func TestLocal_GetInstallPath(t *testing.T) {
 			fields: fields{
 				Root: filepath.Join("testdata", "local"),
 			},
-			want:    filepath.Join(installDirName, localRoot, "testdata", "local"),
+			want: filepath.Join(installDirName,
+				strings.ReplaceAll(
+					filepath.Join(cwd, "testdata", "local"),
+					string(filepath.Separator),
+					"$",
+				),
+			),
 			wantErr: false,
 		},
 		{
@@ -92,7 +102,13 @@ func TestLocal_GetInstallPath(t *testing.T) {
 			fields: fields{
 				Root: filepath.Join(cwd, "testdata", "local"),
 			},
-			want:    filepath.Join(installDirName, localRoot, "testdata", "local"),
+			want: filepath.Join(installDirName,
+				strings.ReplaceAll(
+					filepath.Join(cwd, "testdata", "local"),
+					string(filepath.Separator),
+					"$",
+				),
+			),
 			wantErr: false,
 		},
 		{
@@ -100,7 +116,13 @@ func TestLocal_GetInstallPath(t *testing.T) {
 			fields: fields{
 				Root: filepath.Join("testdata", "local", "does-not-exist", ".."),
 			},
-			want:    filepath.Join(installDirName, localRoot, "testdata", "local"),
+			want: filepath.Join(installDirName,
+				strings.ReplaceAll(
+					filepath.Join(cwd, "testdata", "local"),
+					string(filepath.Separator),
+					"$",
+				),
+			),
 			wantErr: false,
 		},
 		{
@@ -108,7 +130,13 @@ func TestLocal_GetInstallPath(t *testing.T) {
 			fields: fields{
 				Root: filepath.Join(cwd, "testdata", "local", "does-not-exist", ".."),
 			},
-			want:    filepath.Join(installDirName, localRoot, "testdata", "local"),
+			want: filepath.Join(installDirName,
+				strings.ReplaceAll(
+					filepath.Join(cwd, "testdata", "local"),
+					string(filepath.Separator),
+					"$",
+				),
+			),
 			wantErr: false,
 		},
 		{

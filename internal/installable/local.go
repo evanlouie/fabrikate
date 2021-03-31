@@ -8,8 +8,6 @@ import (
 	"strings"
 )
 
-const localRoot = "_local"
-
 type Local struct {
 	Root string
 }
@@ -30,19 +28,17 @@ func (l Local) Install() error {
 		return fmt.Errorf(`stating Root for local component %+v: %w`, l, err)
 	}
 
-	// track all folders and files
-	var folders, files []string
+	// track all files
+	var files []string
 
-	// if targeting a directory, walk it.
-	// otherwise, just add the Root to files and its parent directory to folders
+	// if targeting a directory, walk it and add all files to tracking list
+	// otherwise, just add the Root to tracking list
 	if targetInfo.IsDir() {
 		err = filepath.Walk(abs, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return fmt.Errorf(`walking local installable path %s: %w`, path, err)
 			}
-			if info.IsDir() {
-				folders = append(folders, path)
-			} else {
+			if !info.IsDir() {
 				files = append(files, path)
 			}
 			return nil
@@ -51,7 +47,6 @@ func (l Local) Install() error {
 			return err
 		}
 	} else {
-		folders = append(folders, filepath.Dir(abs))
 		files = append(files, abs)
 	}
 
@@ -64,31 +59,24 @@ func (l Local) Install() error {
 		return fmt.Errorf(`cleaning existing local component installation: %w`, err)
 	}
 
-	// copy all folders and files to the installPath; folders go first
-	for _, dir := range folders {
-		folderPath := filepath.Join(installPath, dir)
-		if err := os.MkdirAll(folderPath, os.ModePerm); err != nil {
-			return fmt.Errorf(`copying directory %s for local installable %+v: %w`, dir, l, err)
-		}
-	}
+	// copy all files to the installPath
 	for _, file := range files {
-		originalPath, err := filepath.Abs(file)
+		in, err := os.Open(file)
 		if err != nil {
-			return fmt.Errorf(`computing absolute path for copied resource %s from installable %+v: %w`, originalPath, l, err)
-		}
-		in, err := os.Open(originalPath)
-		if err != nil {
-			return fmt.Errorf(`opening file %s for local installable %+v: %w`, originalPath, l, err)
+			return fmt.Errorf(`opening file %s for local installable %+v: %w`, file, l, err)
 		}
 		defer in.Close()
-		copyPath := filepath.Join(installPath, file)
+		copyPath := filepath.Join(installPath, filepath.Base(file))
+		if err := os.MkdirAll(filepath.Dir(copyPath), os.ModePerm); err != nil {
+			return fmt.Errorf(`creating parent directory for file %s: %w`, copyPath, err)
+		}
 		out, err := os.Create(copyPath)
 		if err != nil {
 			return fmt.Errorf(`creating file %s for copying of contents for local installable %+v: %w`, copyPath, l, err)
 		}
 		defer out.Close()
 		if _, err := io.Copy(out, in); err != nil {
-			return fmt.Errorf(`copying contents from %s to %s for local installabled %+v: %w`, originalPath, copyPath, l, err)
+			return fmt.Errorf(`copying contents from %s to %s for local installabled %+v: %w`, file, copyPath, l, err)
 		}
 	}
 
@@ -96,7 +84,9 @@ func (l Local) Install() error {
 }
 
 // GetInstallPath returns the installation path for provided local Installlable
-// by joining `<installDirName>/_local/<relative-path-to-root-from-cwd>`.
+// by joining
+// `<installDirName>/<absolute-path-to-root-with-seperators-replaced-with-$>`.
+//
 // TODO decide if to accept absolute paths or only relative paths without access to parent directories
 // FIXME this might be broken with certain relative paths
 func (l Local) GetInstallPath() (string, error) {
@@ -104,27 +94,20 @@ func (l Local) GetInstallPath() (string, error) {
 		return "", err
 	}
 
-	// calculate the relative path from abs current dir to abs l.Root
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf(`getting current working directory: %w`, err)
-	}
 	absRoot, err := filepath.Abs(l.Root)
 	if err != nil {
 		return "", fmt.Errorf(`getting absolute path to %s for local installable %+v: %w`, l.Root, l, err)
 	}
-	rel, err := filepath.Rel(cwd, absRoot)
-	if err != nil {
-		return "", fmt.Errorf(`getting relative path to %s: %w`, l.Root, err)
-	}
-	// if rel is a file, install path is the parent
-	if info, err := os.Stat(rel); err != nil {
-		return "", fmt.Errorf(`statting %s for installable %+v: %w`, rel, l, err)
-	} else if !info.IsDir() {
-		rel = filepath.Dir(rel)
-	}
 
-	return filepath.Join(installDirName, localRoot, rel), nil
+	// if the target is a file, the installable directory will be the parent
+	if info, err := os.Stat(absRoot); err != nil {
+		return "", fmt.Errorf(`statting %s for installable %+v: %w`, absRoot, l, err)
+	} else if !info.IsDir() {
+		absRoot = filepath.Dir(absRoot)
+	}
+	flattendAbsPath := strings.ReplaceAll(absRoot, string(filepath.Separator), "$")
+
+	return filepath.Join(installDirName, flattendAbsPath), nil
 }
 
 func (l Local) Validate() error {
