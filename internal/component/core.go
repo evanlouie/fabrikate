@@ -44,7 +44,7 @@ type Component struct {
 
 // Load attempts to load a `component\.(ya?ml|json)` from the provided component
 // directory.
-func Load(componentDirectory string) (c Component, err error) {
+func Load(componentDirectory string, parentLogicalPath string) (c Component, err error) {
 	fileRgx := regexp.MustCompile(`(?i)^component\.(ya?ml|json)$`)
 	if file, err := os.Stat(componentDirectory); err != nil {
 		return c, fmt.Errorf(`loading component from "%s": %w`, componentDirectory, err)
@@ -58,9 +58,6 @@ func Load(componentDirectory string) (c Component, err error) {
 		return c, fmt.Errorf(`finding absolute path of component "%v": %w`, componentDirectory, err)
 	}
 	files, err := os.ReadDir(componentAbsDir)
-	//for _, file := range files {
-	//	fmt.Println("---" + file.Name())
-	//}
 	if err != nil {
 		return c, fmt.Errorf(`loading files from component directory "%s": %w`, componentAbsDir, err)
 	}
@@ -104,6 +101,7 @@ func Load(componentDirectory string) (c Component, err error) {
 	}
 
 	c.physicalPath = filepath.Clean(componentDirectory)
+	c.logicalPath = path.Join(parentLogicalPath, c.Name)
 
 	return c, err
 }
@@ -221,12 +219,10 @@ func echo(level int, message interface{}) {
 
 func Install(startPath string) ([]string, error) {
 	echo(0, fmt.Sprintf(`Starting Fabrikate installation at: "%v"`, startPath))
-	c, err := Load(startPath)
+	c, err := Load(startPath, "")
 	if err != nil {
 		return nil, fmt.Errorf(`loading component from path '%s': %w`, startPath, err)
 	}
-	// manually set component paths
-	c.logicalPath = path.Join(c.logicalPath, c.Name)
 
 	visited, err := c.install()
 	if err != nil {
@@ -299,10 +295,11 @@ func (c Component) install() (visited []Component, err error) {
 		}
 		echo(2, "Adding subcomponents to queue")
 		for _, sub := range first.Subcomponents {
+			// manually set the subcomponent paths.
+			// - mimic the behavior of Load() for logicalPath
+			// - set the physicalPath to the parent; will be overwritten during install if the component has a valid Installable
+			// TODO investigate if there is a cleaner way of handling sub/"virtual" components -- logic for paths feels duplicated from Load()
 			sub.logicalPath = path.Join(first.logicalPath, sub.Name)
-			// inherit physical path from parent.
-			// this is needed for local components so there `Source` can be joined with it.
-			// will be overwitten later if it is a remote component and loaded via Load()
 			sub.physicalPath = first.physicalPath
 			rest = append(rest, sub)
 			echo(3, fmt.Sprintf(`Added component to queue: "%v"`, sub.logicalPath))
@@ -329,7 +326,7 @@ func (c Component) install() (visited []Component, err error) {
 				return visited, err
 			}
 			echo(3, fmt.Sprintf(`Installation path: "%v"`, installPath))
-			first.physicalPath = installPath
+			first.physicalPath = installPath // overwite to final/"real" location
 
 			echo(2, "Cleaning previous installation")
 			if err := installer.Clean(); err != nil {
@@ -343,16 +340,14 @@ func (c Component) install() (visited []Component, err error) {
 			echo(3, fmt.Sprintf(`Installed component to: "%v"`, installPath))
 
 			// add remote components to the queue (i.e subcomponents of kind "component")
-			// NOTE their physicalPath must be set to the installPath
 			if first.Kind == "" || strings.EqualFold(first.Kind, "component") {
 				remoteComponentPath := filepath.Join(installPath, first.Path)
 				echo(3, fmt.Sprintf(`Adding fetched remote component to queue: "%v"`, remoteComponentPath))
 				echo(4, fmt.Sprintf(`Loading component: "%s"`, remoteComponentPath))
-				remoteComponent, err := Load(remoteComponentPath)
+				remoteComponent, err := Load(remoteComponentPath, first.logicalPath)
 				if err != nil {
 					return visited, fmt.Errorf(`loading component from path "%v": %w`, installPath, err)
 				}
-				remoteComponent.logicalPath = path.Join(first.logicalPath, remoteComponent.Name)
 				echo(5, fmt.Sprintf(`Loaded component with logical path: "%s"`, remoteComponent.logicalPath))
 				rest = append(rest, remoteComponent)
 				echo(4, fmt.Sprintf(`Added remote component to queue: "%v"`, remoteComponent.logicalPath))

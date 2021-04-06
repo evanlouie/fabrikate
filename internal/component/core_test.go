@@ -19,7 +19,16 @@ func TestInstall(t *testing.T) {
 		{
 			name: "yaml",
 			args: args{filepath.Join("testdata", "install", "yaml")},
-			want: []string{"monitoring", "monitoring/prometheus", "monitoring/grafana", "monitoring/traefik", "monitoring/my-svc", "monitoring/traefik/traefik", "monitoring/my-svc/random-svc"},
+			want: []string{
+				"test-component",
+				"test-component/prometheus",
+				"test-component/grafana",
+				"test-component/traefik",
+				"test-component/my-svc",
+				"test-component/azure voting",
+				"test-component/traefik/traefik",
+				"test-component/my-svc/random-svc",
+			},
 		},
 		// {
 		// 	name: "json",
