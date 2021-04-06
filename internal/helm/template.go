@@ -121,9 +121,10 @@ func TemplateWithCRDs(opts TemplateOptions) ([]map[string]interface{}, error) {
 // Returns the map[string]interface{} decoded output of stdout for the
 // `helm template` call.
 // Will return an error occurs when:
-// - running `helm template` returns an error
-// - command outputs ANYTHING to stderr
-// - stdout of `helm template` command cannot be decoded to a map[string]interface{}
+//
+//  - running `helm template` returns an error
+//  - command outputs ANYTHING to stderr
+//  - stdout of `helm template` command cannot be decoded to a map[string]interface{}
 //
 // NOTE in Helm 3, CRDs in the "crds" directory of the chart are not outputted
 // from `helm template` but are installed via `helm install`

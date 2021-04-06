@@ -9,29 +9,29 @@ import (
 
 const (
 	generateDirName        = "_generated"
-	componentPathSeparator = "_"
+	componentPathSeparator = "$"
 )
 
 type Generatable interface {
-	// Generate the generatable to the yaml file pointed to by GetGeneratePath.
+	// Generate the Generatable to the yaml file pointed to by GetGeneratePath.
 	// Returns the number of bytes written or an error.
 	Generate() (int, error)
-	// GetGeneratePath will convert the generatables ComponentPath into an
+	// GetGeneratePath will convert the Generatable's ComponentPath into an
 	// absolute path to a yaml file.
 	GetGeneratePath() (string, error)
-	// Validate the generatable to ensure that all fields are correct.
+	// Validate the Generatable to ensure that all fields are correct.
 	// Should be as stateless as possible -- can be called multiple times
 	// throughout application life (e.g. before both GetGeneratePath and Generate)
 	Validate() error
 }
 
 // Pathable encapsulates the common data and methods needed for GetGeneratePath.
-// All particpating struct for Generatable should inherit from this.
+// All participating struct for Generatable should inherit from this.
 type Pathable struct {
 	ComponentPath []string // list representation of parent->child component structure; used to generate the generation path
 }
 
-// GetGeneratePath converts the pathables ComponentPath to os-specifc filepath
+// GetGeneratePath converts the Pathable's ComponentPath to os-specific filepath
 // starting at `$(pwd)/_generated`
 func (n Pathable) GetGeneratePath() (string, error) {
 	if len(n.ComponentPath) == 0 {
