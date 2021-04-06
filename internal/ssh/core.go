@@ -58,7 +58,7 @@ func InitializeIdentities() (identities []PlainIdentity, err error) {
 }
 
 // Fingerprints returns the output of `ssh-add -l`
-func Fingerprints() (prints []Fingerprint, err error) {
+func Fingerprints() (fingerprints []Fingerprint, err error) {
 	cmd := exec.Command("ssh-add", "-l")
 	// note: ssh-add outputs everything to stderr
 	out, err := cmd.CombinedOutput()
@@ -76,7 +76,7 @@ func Fingerprints() (prints []Fingerprint, err error) {
 	)
 	for _, line := range strutil.SplitLines(string(out)) {
 		if rgx.MatchString(line) {
-			var print Fingerprint
+			var fingerprint Fingerprint
 			for idx, match := range rgx.FindStringSubmatch(line) {
 				switch rgx.SubexpNames()[idx] {
 				case BitLength:
@@ -84,18 +84,18 @@ func Fingerprints() (prints []Fingerprint, err error) {
 					if err != nil {
 						return nil, fmt.Errorf(`converting ssh key bit length %s to integer: %w`, match, err)
 					}
-					print.BitLength = matchAsInt
+					fingerprint.BitLength = matchAsInt
 				case Print:
-					print.Fingerprint = match
+					fingerprint.Fingerprint = match
 				case Comment:
-					print.Comment = match
+					fingerprint.Comment = match
 				case Encryption:
-					print.EncryptionType = match
+					fingerprint.EncryptionType = match
 				}
 			}
-			prints = append(prints, print)
+			fingerprints = append(fingerprints, fingerprint)
 		}
 	}
 
-	return prints, err
+	return fingerprints, err
 }

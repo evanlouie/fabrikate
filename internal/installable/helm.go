@@ -74,8 +74,12 @@ func (h Helm) Validate() error {
 	case h.URL == "":
 		return fmt.Errorf(`URL must be non-zero length: %+v`, h)
 	case h.Chart == "":
-		return fmt.Errorf(`Chart must be non-zero length: %+v`, h)
+		return fmt.Errorf(`chart must be non-zero length: %+v`, h)
 	}
 
 	return nil
+}
+
+func (h Helm) Clean() error {
+	return clean(h)
 }

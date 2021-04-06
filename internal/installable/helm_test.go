@@ -46,9 +46,6 @@ func TestHelm_Install(t *testing.T) {
 				Chart:   tt.fields.Chart,
 				Version: tt.fields.Version,
 			}
-			t.Cleanup(func() {
-				cleanup(h)
-			})
 			if err := h.Install(); (err != nil) != tt.wantErr {
 				t.Errorf("Helm.Install() error = %v, wantErr %v", err, tt.wantErr)
 			}

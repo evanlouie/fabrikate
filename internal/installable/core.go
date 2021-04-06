@@ -26,11 +26,14 @@ type Installable interface {
 	// from other packages and internally by other implementing functions of the
 	// Installable (e.g GetInstallPath).
 	Validate() error
+	// Clean the installed component by removing the its fetched content. This is
+	// a noop for local components.
+	Clean() error
 }
 
-// cleanup installed components by deleting the path returned from
-// GetInstallPath
-func cleanup(i Installable) error {
+// clean installed components by deleting the path returned from
+// GetInstallPath.
+func clean(i Installable) error {
 	if i == nil {
 		return fmt.Errorf(`nil installable passed to cleanup`)
 	}

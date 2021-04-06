@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -74,13 +73,7 @@ func TestLocal_GetInstallPath(t *testing.T) {
 			fields: fields{
 				Root: filepath.Join("testdata", "local", "nested", "3-random-file.txt"),
 			},
-			want: filepath.Join(installDirName,
-				strings.ReplaceAll(
-					filepath.Join(cwd, "testdata", "local", "nested"),
-					string(filepath.Separator),
-					"$",
-				),
-			),
+			want:    filepath.Join("testdata", "local", "nested", "3-random-file.txt"),
 			wantErr: false,
 		},
 		{
@@ -88,13 +81,7 @@ func TestLocal_GetInstallPath(t *testing.T) {
 			fields: fields{
 				Root: filepath.Join("testdata", "local"),
 			},
-			want: filepath.Join(installDirName,
-				strings.ReplaceAll(
-					filepath.Join(cwd, "testdata", "local"),
-					string(filepath.Separator),
-					"$",
-				),
-			),
+			want:    filepath.Join("testdata", "local"),
 			wantErr: false,
 		},
 		{
@@ -102,13 +89,7 @@ func TestLocal_GetInstallPath(t *testing.T) {
 			fields: fields{
 				Root: filepath.Join(cwd, "testdata", "local"),
 			},
-			want: filepath.Join(installDirName,
-				strings.ReplaceAll(
-					filepath.Join(cwd, "testdata", "local"),
-					string(filepath.Separator),
-					"$",
-				),
-			),
+			want:    filepath.Join(cwd, "testdata", "local"),
 			wantErr: false,
 		},
 		{
@@ -116,13 +97,7 @@ func TestLocal_GetInstallPath(t *testing.T) {
 			fields: fields{
 				Root: filepath.Join("testdata", "local", "does-not-exist", ".."),
 			},
-			want: filepath.Join(installDirName,
-				strings.ReplaceAll(
-					filepath.Join(cwd, "testdata", "local"),
-					string(filepath.Separator),
-					"$",
-				),
-			),
+			want:    filepath.Join("testdata", "local", "does-not-exist", ".."),
 			wantErr: false,
 		},
 		{
@@ -130,13 +105,7 @@ func TestLocal_GetInstallPath(t *testing.T) {
 			fields: fields{
 				Root: filepath.Join(cwd, "testdata", "local", "does-not-exist", ".."),
 			},
-			want: filepath.Join(installDirName,
-				strings.ReplaceAll(
-					filepath.Join(cwd, "testdata", "local"),
-					string(filepath.Separator),
-					"$",
-				),
-			),
+			want:    filepath.Join(cwd, "testdata", "local", "does-not-exist", ".."),
 			wantErr: false,
 		},
 		{

@@ -79,3 +79,7 @@ func (h HTTP) Validate() error {
 
 	return nil
 }
+
+func (h HTTP) Clean() error {
+	return clean(h)
+}

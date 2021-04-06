@@ -1,6 +1,8 @@
 _components
 _generated
 _releases
+_install.lock.json
+cmd/playground
 
 # Binaries for programs and plugins
 *.exe

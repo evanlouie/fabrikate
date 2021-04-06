@@ -71,7 +71,7 @@ func (g Git) Validate() error {
 	case g.URL == "":
 		return fmt.Errorf(`URL must be non-zero length`)
 	case g.SHA != "" && g.Branch != "":
-		return fmt.Errorf(`Only one of SHA or Branch can be provided, "%v" and "%v" provided respectively`, g.SHA, g.Branch)
+		return fmt.Errorf(`only one of SHA or Branch can be provided, "%v" and "%v" provided respectively`, g.SHA, g.Branch)
 	}
 
 	return nil
@@ -109,7 +109,7 @@ func (g Git) clone(dir string) error {
 	}
 
 	// create a mutex for the path
-	nodes[dir] = &sync.RWMutex{} // add a rwlock
+	nodes[dir] = &sync.RWMutex{} // add a lock
 
 	node, exists := nodes[dir]
 	if !exists {
@@ -182,4 +182,8 @@ func (g Git) clone(dir string) error {
 	}
 
 	return nil
+}
+
+func (g Git) Clean() error {
+	return clean(g)
 }

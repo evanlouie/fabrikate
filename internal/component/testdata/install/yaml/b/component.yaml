@@ -1,0 +1,4 @@
+name: random-svc
+type: helm
+method: local
+source: my-chart

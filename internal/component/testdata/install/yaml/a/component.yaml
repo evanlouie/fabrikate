@@ -1,0 +1,5 @@
+name: traefik
+type: helm
+method: helm
+source: https://helm.traefik.io/traefik
+path: traefik
