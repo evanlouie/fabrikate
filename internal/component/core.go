@@ -42,10 +42,6 @@ type Component struct {
 	manifest string
 }
 
-type installReport struct {
-	Components map[string]string
-}
-
 // Load attempts to load a `component\.(ya?ml|json)` from the provided component
 // directory.
 func Load(componentDirectory string) (c Component, err error) {
@@ -185,20 +181,25 @@ func (c Component) ToGeneratable() (generator generatable.Generatable, err error
 // Validate returns an error if the component is unable to be converted to an
 // Installable and Generatable and have both of them be validated.
 func (c Component) Validate() error {
-	installer, err := c.ToInstallable()
-	if err != nil {
-		return fmt.Errorf(`converting component %+v to installable: %w`, c, err)
+	componentNameRgx := regexp.MustCompile(`(?i)^[^/]+$`)
+	if !componentNameRgx.MatchString(c.Name) {
+		return fmt.Errorf(`invalid component names %s: component name must match regex %s`, c.Name, componentNameRgx)
 	}
-	if err := installer.Validate(); err != nil {
-		return fmt.Errorf(`validating installable %+v for component %+v: %w`, installer, c, err)
-	}
-	generator, err := c.ToGeneratable()
-	if err != nil {
-		return fmt.Errorf(`converting component %+v to generatable: %w`, c, err)
-	}
-	if err := generator.Validate(); err != nil {
-		return fmt.Errorf(`validaing generatable %+v for component %+v: %w`, generator, c, err)
-	}
+
+	// installer, err := c.ToInstallable()
+	// if err != nil {
+	// 	return fmt.Errorf(`converting component %+v to installable: %w`, c, err)
+	// }
+	// if err := installer.Validate(); err != nil {
+	// 	return fmt.Errorf(`validating installable %+v for component %+v: %w`, installer, c, err)
+	// }
+	// generator, err := c.ToGeneratable()
+	// if err != nil {
+	// 	return fmt.Errorf(`converting component %+v to generatable: %w`, c, err)
+	// }
+	// if err := generator.Validate(); err != nil {
+	// 	return fmt.Errorf(`validaing generatable %+v for component %+v: %w`, generator, c, err)
+	// }
 
 	return nil
 }
@@ -226,8 +227,6 @@ func Install(startPath string) ([]string, error) {
 	}
 	// manually set component paths
 	c.logicalPath = path.Join(c.logicalPath, c.Name)
-	c.physicalPath = filepath.Clean(startPath)
-	// c.ComponentPath = append(c.ComponentPath, c.Name)
 
 	visited, err := c.install()
 	if err != nil {
@@ -235,14 +234,28 @@ func Install(startPath string) ([]string, error) {
 	}
 
 	echo(0, "Installation report:")
+	type installReport struct {
+		Notes []string `json:"_notes,omitempty"`
+		// TODO decide whether to hold this in a map or a list of {Name: string, Path: string}; map iteration is not stable in Go
+		Components map[string]string // logicalPath => physicalPath
+	}
+
 	report := installReport{
+		Notes: []string{
+			"This file is auto generated via `fab install`",
+			"This file is consumed by `fab generate`",
+			"The API for this file is unstable -- do not build tooling around it",
+			"Order of components matters",
+			"This files location relative to directory where `fab install` was called matters -- do not move it",
+			"Do not modify unless you know what you are doing!",
+		},
 		Components: map[string]string{},
 	}
 	var installedLogicalPaths []string
 	for _, c := range visited {
 		// add to installation report
 		if existingPath, ok := report.Components[c.logicalPath]; ok {
-			return nil, fmt.Errorf(`duplicate installation reported for component %s: existing %s: new %s`, c.logicalPath, existingPath, c.physicalPath)
+			return nil, fmt.Errorf(`duplicate installation reported for component with logical path %s: existing %s: new %s`, c.logicalPath, existingPath, c.physicalPath)
 		}
 		report.Components[c.logicalPath] = c.physicalPath
 
@@ -251,7 +264,7 @@ func Install(startPath string) ([]string, error) {
 	}
 
 	installReportPath := "_install.lock.json"
-	echo(0, fmt.Sprintf("Writing out installation report to %s", installReportPath))
+	echo(0, fmt.Sprintf("Writing installation report to %s", installReportPath))
 	b, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
 		return installedLogicalPaths, fmt.Errorf(`marshalling installation report %s: %w`, installReportPath, err)
@@ -279,21 +292,25 @@ func (c Component) install() (visited []Component, err error) {
 		// recursive case
 		first, rest := queue[0], queue[1:]
 
-		echo(0, fmt.Sprintf(`Installing component: "%v"`, first.logicalPath))
-		echo(1, "Adding subcomponents to queue")
+		echo(1, fmt.Sprintf(`Installing component: "%s"`, first.logicalPath))
+		echo(2, "Validating component")
+		if err := c.Validate(); err != nil {
+			return visited, err
+		}
+		echo(2, "Adding subcomponents to queue")
 		for _, sub := range first.Subcomponents {
 			sub.logicalPath = path.Join(first.logicalPath, sub.Name)
-			// inherit physical path from parent
+			// inherit physical path from parent.
+			// this is needed for local components so there `Source` can be joined with it.
 			// will be overwitten later if it is a remote component and loaded via Load()
 			sub.physicalPath = first.physicalPath
-			//sub.ComponentPath = append(first.ComponentPath, sub.Name)
 			rest = append(rest, sub)
-			echo(2, fmt.Sprintf(`Added component to queue: "%v"`, sub.Name))
+			echo(3, fmt.Sprintf(`Added component to queue: "%v"`, sub.logicalPath))
 		}
 
-		echo(1, "Executing hook: Before-Install")
+		echo(2, "Executing hook: Before-Install")
 		if err := first.beforeInstall(); err != nil {
-			echo(2, fmt.Errorf(`error running "before-install" hook: %w`, err))
+			echo(3, fmt.Errorf(`error running "before-install" hook: %w`, err))
 		}
 
 		installer, err := first.ToInstallable()
@@ -301,55 +318,54 @@ func (c Component) install() (visited []Component, err error) {
 			return visited, fmt.Errorf(`installing component "%v": %w`, first.logicalPath, err)
 		}
 		if installer != nil {
-			echo(1, fmt.Sprintf("Validating installer coordinate: %+v", installer))
+			echo(2, fmt.Sprintf("Validating installer coordinate: %+v", installer))
 			if err := installer.Validate(); err != nil {
 				return visited, fmt.Errorf(`validation failed for component coordinate "%+v": %w`, installer, err)
 			}
 
-			echo(1, "Computing installation path")
+			echo(2, "Computing installation path")
 			installPath, err := installer.GetInstallPath()
 			if err != nil {
 				return visited, err
 			}
-			echo(2, fmt.Sprintf(`Installation path: "%v"`, installPath))
+			echo(3, fmt.Sprintf(`Installation path: "%v"`, installPath))
 			first.physicalPath = installPath
 
-			echo(1, "Cleaning previous installation")
+			echo(2, "Cleaning previous installation")
 			if err := installer.Clean(); err != nil {
-				echo(2, fmt.Errorf(`error cleaning components %s: %w`, first.logicalPath, err))
+				return visited, fmt.Errorf(`error cleaning components %s: %w`, first.logicalPath, err)
 			}
 
-			echo(1, "Installing")
+			echo(2, "Installing")
 			if err := installer.Install(); err != nil {
 				return visited, fmt.Errorf(`installing component "%v": %w`, first.Name, err)
 			}
-			echo(2, fmt.Sprintf(`Installed component to: "%v"`, installPath))
+			echo(3, fmt.Sprintf(`Installed component to: "%v"`, installPath))
 
 			// add remote components to the queue (i.e subcomponents of kind "component")
 			// NOTE their physicalPath must be set to the installPath
-			// if regexp.MustCompile(`(?i)^(component)?$`).MatchString(first.Kind) {
 			if first.Kind == "" || strings.EqualFold(first.Kind, "component") {
 				remoteComponentPath := filepath.Join(installPath, first.Path)
-				echo(2, fmt.Sprintf(`Adding fetched remote component to queue: "%v"`, remoteComponentPath))
-				echo(3, fmt.Sprintf(`Loading component: "%v"`, remoteComponentPath))
+				echo(3, fmt.Sprintf(`Adding fetched remote component to queue: "%v"`, remoteComponentPath))
+				echo(4, fmt.Sprintf(`Loading component: "%s"`, remoteComponentPath))
 				remoteComponent, err := Load(remoteComponentPath)
 				if err != nil {
 					return visited, fmt.Errorf(`loading component from path "%v": %w`, installPath, err)
 				}
 				remoteComponent.logicalPath = path.Join(first.logicalPath, remoteComponent.Name)
-				echo(4, fmt.Sprintf(`Loaded component: "%v"`, remoteComponent.Name))
+				echo(5, fmt.Sprintf(`Loaded component with logical path: "%s"`, remoteComponent.logicalPath))
 				rest = append(rest, remoteComponent)
-				echo(3, fmt.Sprintf(`Added remote component to queue: "%v"`, remoteComponent.Name))
+				echo(4, fmt.Sprintf(`Added remote component to queue: "%v"`, remoteComponent.logicalPath))
 			}
 		}
 
-		echo(1, "Executing hook: After-Install")
+		echo(2, "Executing hook: After-Install")
 		if err := first.afterInstall(); err != nil {
-			echo(2, fmt.Errorf(`error running "after-install" hook: %w`, err))
+			return visited, fmt.Errorf(`error running "after-install" hook: %w`, err)
 		}
 
 		visited = append(visited, first)
-		echo(1, "Installation complete")
+		echo(2, "Installation complete")
 
 		// reset queue to rest
 		queue = rest
